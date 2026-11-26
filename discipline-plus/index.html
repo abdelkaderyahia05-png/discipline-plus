@@ -1,0 +1,1043 @@
+<!doctype html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <meta name="theme-color" content="#7138F5" />
+  <title>Discipline+</title>
+  <meta name="description" content="Discipline+ : une mission par jour pour débloquer tes applis." />
+
+  <!-- application installable (PWA) -->
+  <link rel="manifest" href="manifest.webmanifest" />
+  <link rel="icon" type="image/png" sizes="48x48" href="icons/favicon-48.png" />
+  <link rel="icon" type="image/png" sizes="192x192" href="icons/icon-192.png" />
+  <link rel="apple-touch-icon" href="icons/apple-touch-icon.png" />
+  <meta name="mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-title" content="Discipline+" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="default" />
+  <script>
+    // Invitation d'installation de Chrome : on la garde pour le bouton « Installer » des Paramètres.
+    window.addEventListener('beforeinstallprompt', function (e) { e.preventDefault(); window.__invitation = e; window.dispatchEvent(new Event('dp-installation')); });
+    window.addEventListener('appinstalled', function () { window.__invitation = null; window.dispatchEvent(new Event('dp-installation')); });
+    // Service worker : cache hors ligne + notifications.
+    if ('serviceWorker' in navigator) {
+      window.addEventListener('load', function () {
+        navigator.serviceWorker.register('sw.js').then(function () { return navigator.serviceWorker.ready; }).then(function (reg) {
+          // Au premier lancement, on signale au service worker tout ce que la page a déjà chargé pour qu'il le mette en cache.
+          function rechauffer() {
+            var urls = performance.getEntriesByType('resource').map(function (r) { return r.name; });
+            if (reg.active) reg.active.postMessage({ type: 'rechauffer', urls: urls });
+          }
+          setTimeout(rechauffer, 3000); setTimeout(rechauffer, 12000);
+        }).catch(function () { /* pas de service worker (ex. page ouverte en file://) : l'appli marche quand même en ligne */ });
+      });
+    }
+  </script>
+
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://unpkg.com/@babel/standalone@7.26.9/babel.min.js"></script>
+  <script type="importmap">
+  {
+    "imports": {
+      "react": "https://esm.sh/react@18.3.1",
+      "react/jsx-runtime": "https://esm.sh/react@18.3.1/jsx-runtime",
+      "react-dom": "https://esm.sh/react-dom@18.3.1?deps=react@18.3.1",
+      "react-dom/client": "https://esm.sh/react-dom@18.3.1/client?deps=react@18.3.1",
+      "lucide-react": "https://esm.sh/lucide-react@0.460.0?deps=react@18.3.1"
+    }
+  }
+  </script>
+  <script>
+    tailwind.config = {
+      theme: { extend: {
+        colors: { violet: { DEFAULT: '#7138F5', vif: '#9747FF', nuit: '#21143F', lavande: '#F1EDFF' }, encre: '#17132C' },
+        fontFamily: { sans: ['Inter', 'system-ui', 'sans-serif'] },
+      } },
+    };
+    function afficherErreur(msg) {
+      console.error('[clone-rapide]', msg);
+      var b = document.getElementById('erreurs');
+      if (!b) { b = document.createElement('pre'); b.id = 'erreurs';
+        b.style.cssText = 'position:fixed;bottom:0;left:0;right:0;max-height:40vh;overflow:auto;margin:0;padding:12px;background:#b91c1c;color:#fff;font:12px/1.4 monospace;z-index:99999;white-space:pre-wrap';
+        document.body.appendChild(b); }
+      b.textContent += 'ERREUR : ' + msg + '\n';
+    }
+    window.addEventListener('error', function (e) { afficherErreur(e.message + (e.filename ? ' (' + e.filename + ':' + e.lineno + ')' : '')); });
+    window.addEventListener('unhandledrejection', function (e) { afficherErreur(String(e.reason && e.reason.stack || e.reason)); });
+  </script>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet" />
+  <style>
+    :root { --w: min(100vw, 440px); --u: calc(var(--w) / 852); }
+    html, body { margin: 0; overflow-x: hidden; }
+    body { background: #e9e4f3; color: #17132C; -webkit-tap-highlight-color: transparent; }
+    @media (min-width: 640px) {
+      body { background: radial-gradient(1200px 700px at 50% 0%, #cdbdff 0%, #ece6fb 45%, #f6f3ff 100%); }
+      .ecran { box-shadow: 0 30px 80px -20px rgba(49,24,120,.35); border-radius: 36px; margin-top: 24px; margin-bottom: 24px; overflow: hidden; }
+    }
+    .ecran { position: relative; width: var(--w); margin-left: auto; margin-right: auto; overflow-x: hidden;
+      background: linear-gradient(180deg, #a9a7ac 0%, #c9c2c0 calc(var(--u)*560), #d9d1cf calc(var(--u)*1000), #ece5ea calc(var(--u)*1400), #f1ecf6 100%); min-height: 100vh; }
+    .verre-blanc { background: linear-gradient(180deg, rgba(255,255,255,.93), rgba(250,247,255,.86)); border: 1px solid rgba(255,255,255,.95);
+      box-shadow: 0 calc(var(--u)*18) calc(var(--u)*50) rgba(84,52,160,.16), inset 0 1px 0 #fff; backdrop-filter: blur(14px); -webkit-backdrop-filter: blur(14px); }
+    .verre-sombre { background: linear-gradient(160deg, rgba(58,45,92,.78) 0%, rgba(36,27,64,.82) 55%, rgba(30,22,54,.86) 100%);
+      border: calc(var(--u)*3) solid rgba(255,255,255,.55); backdrop-filter: blur(16px) saturate(1.2); -webkit-backdrop-filter: blur(16px) saturate(1.2);
+      box-shadow: 0 0 0 1px rgba(151,71,255,.35), 0 calc(var(--u)*24) calc(var(--u)*60) rgba(33,20,63,.35), inset 0 0 calc(var(--u)*40) rgba(151,71,255,.12); }
+    .carte-violette { background: linear-gradient(100deg, #3a2a68 0%, #2a1e4f 45%, #231842 100%);
+      border: calc(var(--u)*3) solid rgba(255,255,255,.7); box-shadow: 0 0 0 1px rgba(151,71,255,.4), 0 calc(var(--u)*20) calc(var(--u)*50) rgba(33,20,63,.35), inset 0 0 calc(var(--u)*50) rgba(151,71,255,.18); }
+    .btn-violet { background: linear-gradient(90deg, #9b5bff 0%, #8247ff 45%, #6a33f0 100%);
+      box-shadow: 0 0 calc(var(--u)*30) rgba(151,71,255,.55), inset 0 calc(var(--u)*2) 0 rgba(255,255,255,.35), 0 calc(var(--u)*10) calc(var(--u)*24) rgba(113,56,245,.45); }
+    .badge-mission { background: linear-gradient(90deg, #8a3cff, #b44cf0); box-shadow: 0 0 calc(var(--u)*24) rgba(180,76,240,.55), inset 0 1px 0 rgba(255,255,255,.35); }
+    .pression { transition: transform .15s ease, filter .15s ease; }
+    .pression:active { transform: scale(.96); }
+    .pression:hover { filter: brightness(1.05); }
+    @keyframes monte { from { transform: translateY(100%); } to { transform: translateY(0); } }
+    @keyframes fondu { from { opacity: 0; } to { opacity: 1; } }
+    @keyframes pop { 0% { transform: scale(.6); opacity: 0 } 70% { transform: scale(1.08) } 100% { transform: scale(1); opacity: 1 } }
+    @keyframes flotte { 0%,100% { transform: translateY(0) } 50% { transform: translateY(calc(var(--u)*-6)) } }
+    @keyframes tombe { to { transform: translateY(110vh) rotate(720deg); opacity: .9 } }
+    @keyframes pulse-dot { 0%,100% { box-shadow: 0 0 0 0 rgba(255,59,48,.6) } 50% { box-shadow: 0 0 0 calc(var(--u)*8) rgba(255,59,48,0) } }
+    .feuille { animation: monte .32s cubic-bezier(.2,.9,.25,1); }
+    .voile { animation: fondu .2s ease; }
+    .pop { animation: pop .45s cubic-bezier(.2,.9,.25,1); }
+    .flotte { animation: flotte 4s ease-in-out infinite; }
+    .vue { animation: fondu .25s ease; }
+    @media (prefers-reduced-motion: reduce) { .feuille, .voile, .pop, .flotte, .vue { animation: none; } }
+  </style>
+</head>
+<body class="font-sans antialiased">
+  <div id="root"></div>
+
+  <script type="text/babel" data-type="module" data-presets="react">
+    import React, { useState, useEffect, useRef, useMemo } from 'react';
+    import { createRoot } from 'react-dom/client';
+    import { Check, ChevronRight, ChevronDown, Lock, LockOpen, Clock, X, Camera, Home, Trophy, Settings, Bell, RotateCcw, Pause, Play, Info, Flame, Target, Sparkles, Download } from 'lucide-react';
+
+    /* ---------- unités : 1 = 1 px de la maquette (852 px de large) ---------- */
+    const u = (n) => `calc(var(--u) * ${n})`;
+    const t = (n, min = 9) => `max(calc(var(--u) * ${n}), ${min}px)`; // texte avec taille mini lisible
+
+    /* ---------- données ---------- */
+    const MISSIONS = [
+      { jour: 1, titre: 'Range ta chambre !', emoji: '🛏️', desc: "Montre-moi une chambre propre et rangée. Pas d'excuses ! 😉", minutes: 30, image: 'img/chambre.jpg', photo: true,
+        checklist: ['Lit fait', 'Sol dégagé', 'Vêtements rangés', 'Bureau propre'] },
+      { jour: 2, titre: 'Fais 15 pompes', court: 'Fais 15 pompes', emoji: '💪', desc: 'Quinze pompes propres, dos bien droit. Je compte avec toi !', minutes: 15, image: 'img/haltere.jpg',
+        checklist: ['Échauffement', '15 pompes complètes', 'Étirements'] },
+      { jour: 3, titre: 'Lis 10 pages', court: 'Lis 10 pages', emoji: '📖', desc: 'Dix pages, téléphone loin de toi. Concentration maximale.', minutes: 10, image: 'img/livre.jpg',
+        checklist: ['Téléphone posé', '10 pages lues', 'Une idée retenue'] },
+      { jour: 4, titre: "Bois 1,5L d'eau", court: "Bois 1,5L d'eau", emoji: '💧', desc: 'Hydrate-toi toute la journée. Un verre à chaque repas, minimum.', minutes: null, image: 'img/eau.jpg',
+        checklist: ['Matin : 0,5 L', 'Midi : 0,5 L', 'Soir : 0,5 L'] },
+    ];
+    const APPS = [
+      { id: 'tiktok', nom: 'TikTok' }, { id: 'youtube', nom: 'YouTube' }, { id: 'instagram', nom: 'Instagram' },
+      { id: 'snapchat', nom: 'Snapchat' }, { id: 'x', nom: 'X' },
+    ];
+    const XP_PAR_MISSION = 50;
+    const XP_NIVEAU = 200;
+    const CLE = 'disciplineplus.v1';
+
+    const etatInitial = () => ({
+      index: 0, serie: 12, niveau: 3, xp: 120, terminees: 0,
+      fin: null, pause: null, missionFaite: false,
+      historique: [], appsBloquees: APPS.map((a) => a.id), sons: true,
+      alertes: true, alerteFin: null, // notification de fin de chrono ; alerteFin = échéance déjà signalée
+      notifs: [
+        { id: 1, titre: 'Nouvelle mission', texte: 'Range ta chambre ! Tu as 30 minutes.', lu: false },
+        { id: 2, titre: 'Série de 12 jours 🔥', texte: 'Continue comme ça, tu es sur une belle lancée.', lu: false },
+      ],
+    });
+    function charger() {
+      try { const s = JSON.parse(localStorage.getItem(CLE)); if (s && typeof s.index === 'number') return { ...etatInitial(), ...s }; } catch (e) {}
+      return etatInitial();
+    }
+
+    /* ---------- icônes sur mesure ---------- */
+    function LogoD({ taille = 90 }) {
+      return (
+        <div className="relative flex items-center justify-center" style={{ width: u(taille), height: u(taille * 0.98), borderRadius: u(taille * 0.26),
+          background: 'linear-gradient(145deg,#a35cff 0%,#7a3cf6 50%,#5d22e0 100%)', boxShadow: `0 ${u(10)} ${u(26)} rgba(113,56,245,.45), inset 0 ${u(2)} 0 rgba(255,255,255,.35)` }}>
+          <svg viewBox="0 0 100 100" style={{ width: '64%', height: '64%' }}>
+            <path d="M24 22 H52 a28 28 0 0 1 0 56 H24 V60 H50 a10 10 0 0 0 0 -20 H24 Z" fill="#fff" />
+            <path d="M16 46 l3 -8 l3 8 l8 3 l-8 3 l-3 8 l-3 -8 l-8 -3 Z" fill="#ffd36b" />
+          </svg>
+        </div>
+      );
+    }
+    function Chrono({ taille = 76 }) {
+      return (
+        <svg viewBox="0 0 80 88" style={{ width: u(taille), height: u(taille * 1.1), filter: 'drop-shadow(0 0 6px rgba(151,71,255,.6))' }}>
+          <defs><linearGradient id="gc" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stopColor="#b78bff" /><stop offset="1" stopColor="#7138F5" /></linearGradient></defs>
+          <rect x="32" y="2" width="16" height="8" rx="3" fill="url(#gc)" />
+          <rect x="37" y="8" width="6" height="8" fill="url(#gc)" />
+          <rect x="62" y="16" width="10" height="6" rx="3" transform="rotate(40 67 19)" fill="url(#gc)" />
+          <circle cx="40" cy="50" r="34" fill="url(#gc)" />
+          <circle cx="40" cy="50" r="26" fill="#2a1d4f" />
+          <path d="M40 50 V30" stroke="#fff" strokeWidth="4" strokeLinecap="round" />
+          <circle cx="40" cy="50" r="4" fill="#fff" />
+          {[0, 90, 180, 270].map((a) => <rect key={a} x="39" y="26" width="2" height="5" fill="#c9b3ff" transform={`rotate(${a} 40 50)`} />)}
+        </svg>
+      );
+    }
+    function GraphiqueSerie() {
+      return (
+        <svg viewBox="0 0 100 100" style={{ width: u(96), height: u(96), filter: 'drop-shadow(0 0 8px rgba(151,71,255,.55))' }}>
+          <defs><linearGradient id="gs" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stopColor="#c7a6ff" /><stop offset="1" stopColor="#7a3cf6" /></linearGradient></defs>
+          <rect x="6" y="66" width="14" height="30" rx="3" fill="url(#gs)" />
+          <rect x="28" y="54" width="14" height="42" rx="3" fill="url(#gs)" />
+          <rect x="50" y="42" width="14" height="54" rx="3" fill="url(#gs)" />
+          <rect x="72" y="30" width="14" height="66" rx="3" fill="url(#gs)" />
+          <path d="M6 52 L32 30 L48 40 L84 8" fill="none" stroke="url(#gs)" strokeWidth="6" strokeLinecap="round" strokeLinejoin="round" />
+          <path d="M70 6 H88 V24" fill="none" stroke="url(#gs)" strokeWidth="6" strokeLinecap="round" strokeLinejoin="round" />
+        </svg>
+      );
+    }
+    function Etoile({ taille = 64 }) {
+      return (
+        <svg viewBox="0 0 24 24" style={{ width: u(taille), height: u(taille), filter: 'drop-shadow(0 0 8px rgba(151,71,255,.7))' }}>
+          <defs><linearGradient id="ge" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stopColor="#c9a2ff" /><stop offset="1" stopColor="#7a3cf6" /></linearGradient></defs>
+          <path d="M12 1.8l3.1 6.6 7.2.9-5.3 5 1.4 7.1L12 17.9l-6.4 3.5L7 14.3l-5.3-5 7.2-.9z" fill="url(#ge)" strokeLinejoin="round" />
+        </svg>
+      );
+    }
+    function CadenasRond({ taille = 32, ouvert = false, clair = false }) {
+      return (
+        <span className="flex items-center justify-center rounded-full" style={{ width: u(taille), height: u(taille),
+          background: clair ? '#efe8ff' : 'linear-gradient(145deg,#8f63ff,#6a3be8)', border: `${u(3)} solid #fff`, boxShadow: `0 ${u(3)} ${u(8)} rgba(80,40,170,.3)` }}>
+          {ouvert ? <LockOpen color={clair ? '#7138F5' : '#fff'} strokeWidth={2.6} style={{ width: '55%', height: '55%' }} />
+                  : <Lock color={clair ? '#5b2fd6' : '#fff'} strokeWidth={2.6} style={{ width: '55%', height: '55%' }} />}
+        </span>
+      );
+    }
+    function IconeCalendrier() {
+      return (
+        <svg viewBox="0 0 24 24" style={{ width: u(34), height: u(34) }}>
+          <rect x="2" y="4" width="20" height="18" rx="4" fill="#7138F5" />
+          <rect x="6" y="1.5" width="3" height="5" rx="1.5" fill="#7138F5" /><rect x="15" y="1.5" width="3" height="5" rx="1.5" fill="#7138F5" />
+          <rect x="4.5" y="9" width="15" height="10.5" rx="2" fill="#fff" />
+          {[6.5, 10.5, 14.5].map((x) => <rect key={x} x={x} y="11" width="3" height="3" rx=".8" fill="#7138F5" />)}
+          {[6.5, 10.5].map((x) => <rect key={'b' + x} x={x} y="15" width="3" height="3" rx=".8" fill="#7138F5" />)}
+        </svg>
+      );
+    }
+
+    /* logos d'applications (marques citées pour identifier les applis bloquées) */
+    const P = {
+      tiktok: 'M12.525.02c1.31-.02 2.61-.01 3.91-.02.08 1.53.63 3.09 1.75 4.17 1.12 1.11 2.7 1.62 4.24 1.79v4.03c-1.44-.05-2.89-.35-4.2-.97-.57-.26-1.1-.59-1.62-.93-.01 2.92.01 5.84-.02 8.75-.08 1.4-.54 2.79-1.35 3.94-1.31 1.92-3.58 3.17-5.91 3.21-1.43.08-2.86-.31-4.08-1.03-2.02-1.19-3.44-3.37-3.65-5.71-.02-.5-.03-1-.01-1.49.18-1.9 1.12-3.72 2.58-4.96 1.66-1.440 3.98-2.13 6.15-1.72.02 1.48-.04 2.96-.04 4.44-.99-.32-2.15-.23-3.02.37-.63.41-1.11 1.040-1.36 1.75-.21.51-.15 1.07-.14 1.61.24 1.64 1.82 3.02 3.5 2.87 1.12-.01 2.19-.66 2.77-1.61.19-.33.4-.67.41-1.06.1-1.79.06-3.57.07-5.36.01-4.03-.01-8.05.02-12.07z',
+      snapchat: 'M12.206.793c.99 0 4.347.276 5.93 3.821.529 1.193.403 3.219.299 4.847l-.003.06c-.012.18-.022.345-.03.51.075.045.203.09.401.09.3-.016.659-.12 1.033-.301.165-.088.344-.104.464-.104.182 0 .359.029.509.09.45.149.734.479.734.838.015.449-.39.839-1.213 1.168-.089.029-.209.075-.344.119-.45.135-1.139.36-1.333.81-.09.224-.061.524.12.868l.015.015c.06.136 1.526 3.475 4.791 4.014.255.044.435.27.42.509 0 .075-.015.149-.045.225-.24.569-1.273.988-3.146 1.271-.059.091-.12.375-.164.57-.029.179-.074.36-.134.553-.076.271-.27.405-.555.405h-.03c-.135 0-.313-.031-.538-.074-.36-.075-.765-.135-1.273-.135-.3 0-.599.015-.913.074-.6.104-1.123.464-1.723.884-.853.599-1.826 1.288-3.294 1.288-.06 0-.119-.015-.18-.015h-.149c-1.468 0-2.427-.675-3.279-1.288-.599-.42-1.107-.779-1.707-.884-.314-.045-.629-.074-.928-.074-.54 0-.958.089-1.272.149-.211.043-.391.074-.54.074-.374 0-.523-.224-.583-.42-.061-.192-.09-.389-.135-.567-.046-.181-.105-.494-.166-.57-1.918-.222-2.95-.642-3.189-1.226-.031-.063-.052-.15-.055-.225-.015-.243.165-.465.42-.509 3.264-.54 4.73-3.879 4.791-4.02l.016-.029c.18-.345.224-.645.119-.869-.195-.434-.884-.658-1.332-.809-.121-.029-.24-.074-.346-.119-1.107-.435-1.257-.93-1.197-1.273.09-.479.674-.793 1.168-.793.146 0 .27.029.383.074.42.194.789.3 1.104.3.234 0 .384-.06.465-.105l-.046-.569c-.098-1.626-.225-3.651.307-4.837C7.392 1.077 10.739.807 11.727.807l.419-.015h.06z',
+      x: 'M18.901 1.153h3.68l-8.04 9.19L24 22.846h-7.406l-5.8-7.584-6.638 7.584H.474l8.6-9.83L0 1.154h7.594l5.243 6.932ZM17.61 20.644h2.039L6.486 3.24H4.298Z',
+    };
+    function LogoApp({ id, taille = 72 }) {
+      const base = { width: u(taille), height: u(taille), borderRadius: u(taille * 0.24), overflow: 'hidden', boxShadow: `0 ${u(4)} ${u(12)} rgba(0,0,0,.18)` };
+      if (id === 'tiktok') return (
+        <div style={{ ...base, background: '#000' }} className="flex items-center justify-center">
+          <svg viewBox="0 0 24 24" style={{ width: '62%', height: '62%', overflow: 'visible' }}>
+            <path d={P.tiktok} fill="#25F4EE" transform="translate(-1 -1)" /><path d={P.tiktok} fill="#FE2C55" transform="translate(1 1)" /><path d={P.tiktok} fill="#fff" />
+          </svg>
+        </div>);
+      if (id === 'youtube') return (
+        <div style={{ ...base, background: '#fff' }} className="flex items-center justify-center">
+          <svg viewBox="0 0 24 24" style={{ width: '66%', height: '66%' }}><rect x="0" y="4" width="24" height="16.5" rx="4.5" fill="#FF0000" /><path d="M9.5 8.2v7.6L16 12z" fill="#fff" /></svg>
+        </div>);
+      if (id === 'instagram') return (
+        <div style={{ ...base, background: 'radial-gradient(circle at 30% 107%, #fdf497 0%, #fdf497 5%, #fd5949 45%, #d6249f 60%, #285AEB 90%)' }} className="flex items-center justify-center">
+          <svg viewBox="0 0 24 24" style={{ width: '64%', height: '64%' }} fill="none" stroke="#fff" strokeWidth="2.2"><rect x="2.5" y="2.5" width="19" height="19" rx="5.5" /><circle cx="12" cy="12" r="4.3" /><circle cx="17.6" cy="6.4" r="1.2" fill="#fff" stroke="none" /></svg>
+        </div>);
+      if (id === 'snapchat') return (
+        <div style={{ ...base, background: '#FFFC00' }} className="flex items-center justify-center">
+          <svg viewBox="-1 -1 26 26" style={{ width: '66%', height: '66%' }}><path d={P.snapchat} fill="#fff" stroke="#000" strokeWidth="1.1" /></svg>
+        </div>);
+      return (
+        <div style={{ ...base, background: '#000' }} className="flex items-center justify-center">
+          <svg viewBox="0 0 24 24" style={{ width: '56%', height: '56%' }}><path d={P.x} fill="#fff" /></svg>
+        </div>);
+    }
+
+    /* ---------- utilitaires ---------- */
+    const fmt = (s) => { s = Math.max(0, Math.ceil(s)); const m = Math.floor(s / 60); return `${String(m).padStart(2, '0')}:${String(s % 60).padStart(2, '0')}`; };
+    /* ---------- notifications du système (Notification API) ---------- */
+    const permissionNotifs = () => ('Notification' in window ? Notification.permission : 'indisponible');
+    async function demanderPermissionNotifs() {
+      if (!('Notification' in window)) return 'indisponible';
+      if (Notification.permission !== 'default') return Notification.permission;
+      try { return await Notification.requestPermission(); } catch (e) { return Notification.permission; }
+    }
+    async function notifier(titre, options) {
+      if (permissionNotifs() !== 'granted') return false;
+      // via le service worker d'abord (seule façon acceptée sur Android), sinon notification classique
+      try {
+        const reg = navigator.serviceWorker && (await navigator.serviceWorker.getRegistration());
+        if (reg && reg.showNotification) { await reg.showNotification(titre, options); return true; }
+      } catch (e) {}
+      try { new Notification(titre, options); return true; } catch (e) { return false; }
+    }
+
+    function useMaintenant(actif) {
+      const [now, setNow] = useState(Date.now());
+      useEffect(() => { if (!actif) return; const id = setInterval(() => setNow(Date.now()), 250); return () => clearInterval(id); }, [actif]);
+      return now;
+    }
+
+    function Feuille({ ouverte, onFermer, children, sombre = false }) {
+      if (!ouverte) return null;
+      return (
+        <div className="fixed inset-0 z-50 flex items-end justify-center">
+          <div className="voile absolute inset-0 bg-[#140c2b]/55 backdrop-blur-sm" onClick={onFermer} />
+          <div className={`feuille relative w-full overflow-y-auto ${sombre ? 'bg-[#1f1538] text-white' : 'bg-white'}`}
+            style={{ maxWidth: 'var(--w)', maxHeight: '92vh', borderTopLeftRadius: u(56), borderTopRightRadius: u(56), padding: `${u(26)} ${u(44)} ${u(50)}` }}>
+            <div className="mx-auto rounded-full" style={{ width: u(90), height: u(10), background: sombre ? 'rgba(255,255,255,.25)' : '#e4dcf8', marginBottom: u(26) }} />
+            <button onClick={onFermer} aria-label="Fermer" className="pression absolute flex items-center justify-center rounded-full"
+              style={{ right: u(30), top: u(28), width: u(60), height: u(60), background: sombre ? 'rgba(255,255,255,.12)' : '#f1edff' }}>
+              <X color={sombre ? '#fff' : '#5b2fd6'} style={{ width: '50%', height: '50%' }} />
+            </button>
+            {children}
+          </div>
+        </div>
+      );
+    }
+
+    function Confettis() {
+      const pieces = useMemo(() => Array.from({ length: 60 }, (_, i) => ({
+        left: Math.random() * 100, delay: Math.random() * .6, dur: 1.8 + Math.random() * 1.6, size: 6 + Math.random() * 8,
+        color: ['#9747FF', '#7138F5', '#ffd36b', '#ff6b9a', '#5ee0c0', '#ffffff'][i % 6], rot: Math.random() * 360 })), []);
+      return (
+        <div className="pointer-events-none fixed inset-0 z-[60] overflow-hidden">
+          {pieces.map((p, i) => <span key={i} style={{ position: 'absolute', top: -20, left: p.left + '%', width: p.size, height: p.size * .45, background: p.color,
+            borderRadius: 2, transform: `rotate(${p.rot}deg)`, animation: `tombe ${p.dur}s ${p.delay}s ease-in forwards` }} />)}
+        </div>
+      );
+    }
+
+    /* ================= ACCUEIL ================= */
+    function Accueil({ etat, maj, ouvrir, proposerAlertes }) {
+      const m = MISSIONS[etat.index % MISSIONS.length];
+      const enCours = etat.fin != null && !etat.missionFaite;
+      const now = useMaintenant(enCours && etat.pause == null);
+      const reste = m.minutes == null ? null
+        : etat.missionFaite ? 0
+        : etat.fin == null ? m.minutes * 60
+        : etat.pause != null ? etat.pause / 1000
+        : Math.max(0, (etat.fin - now) / 1000);
+      const expire = enCours && reste === 0 && m.minutes != null;
+      const nonLues = etat.notifs.filter((n) => !n.lu).length;
+      const appsDebloquees = etat.missionFaite;
+
+      const bulle = etat.missionFaite ? <>Bien joué ! 😎<br />Tes applis sont<br />débloquées.</>
+        : expire ? <>Temps écoulé ! ⏰<br />Termine quand<br />même ta mission.</>
+        : <>Salam ! 👋<br />Prêt pour ta<br />mission du jour ?</>;
+
+      const basculerChrono = () => {
+        if (m.minutes == null || etat.missionFaite) return;
+        proposerAlertes(); // premier appui sur le chrono : on demande l'autorisation de notifier la fin
+        if (etat.fin == null) maj({ fin: Date.now() + m.minutes * 60000, pause: null });
+        else if (etat.pause == null) maj({ pause: Math.max(0, etat.fin - Date.now()) });
+        else maj({ fin: Date.now() + etat.pause, pause: null });
+      };
+
+      const prochaines = [1, 2, 3].map((k) => ({ ...MISSIONS[(etat.index + k) % MISSIONS.length], k, jourAffiche: etat.index + k + 1 }));
+
+      return (
+        <div className="vue relative" style={{ paddingBottom: u(150) }}>
+          {/* décor + personnage */}
+          <div className="absolute left-0 top-0 w-full" style={{ height: u(1000), WebkitMaskImage: 'linear-gradient(180deg,#000 90%,transparent)', maskImage: 'linear-gradient(180deg,#000 90%,transparent)' }}>
+            <img src="img/hero.jpg" alt="Le chat Discipline+ sur un terrain de basket ensoleillé" className="h-full w-full object-cover" />
+          </div>
+
+          {/* barre d'état façon iPhone */}
+          <div className="relative flex items-center justify-between" style={{ height: u(88), padding: `0 ${u(62)} 0 ${u(80)}`, fontSize: u(32), fontWeight: 600, color: '#0e0b1a' }}>
+            <span style={{ letterSpacing: '-0.01em' }}>9:41</span>
+            <span className="flex items-center" style={{ gap: u(14) }}>
+              <svg viewBox="0 0 36 22" style={{ width: u(40), height: u(24) }}>{[0, 1, 2, 3].map((i) => <rect key={i} x={i * 9.5} y={16 - i * 5} width="7" height={6 + i * 5} rx="1.6" fill="#0e0b1a" />)}</svg>
+              <svg viewBox="0 0 24 18" style={{ width: u(36), height: u(26) }}><path d="M12 17.5l3.2-3.6a4.6 4.6 0 0 0-6.4 0z M5.6 10.6l2 2.2a6.4 6.4 0 0 1 8.8 0l2-2.2a9.3 9.3 0 0 0-12.8 0z M1.4 6.2l2 2.2a12.4 12.4 0 0 1 17.2 0l2-2.2a15.4 15.4 0 0 0-21.2 0z" fill="#0e0b1a" /></svg>
+              <span className="relative flex items-center" style={{ width: u(52), height: u(25), borderRadius: u(8), border: `${u(2.5)} solid rgba(14,11,26,.45)`, padding: u(2.5) }}>
+                <span className="h-full w-full" style={{ background: '#0e0b1a', borderRadius: u(4) }} />
+                <span className="absolute" style={{ right: u(-7), width: u(3.5), height: u(9), background: 'rgba(14,11,26,.45)', borderRadius: u(2) }} />
+              </span>
+            </span>
+          </div>
+
+          {/* en-tête */}
+          <header className="relative flex items-start" style={{ marginTop: u(9), padding: `0 ${u(44)}` }}>
+            <LogoD />
+            <div style={{ marginLeft: u(31), marginTop: u(2) }}>
+              <h1 style={{ fontSize: u(35), fontWeight: 800, letterSpacing: '-0.03em', lineHeight: 1.1, color: '#120e26' }}>Discipline+</h1>
+              <p style={{ fontSize: t(20), fontWeight: 500, letterSpacing: '-0.02em', marginTop: u(8), color: '#16122a' }}>Un meilleur toi, chaque jour.</p>
+            </div>
+            <button onClick={() => ouvrir('notifs')} aria-label="Notifications" className="pression relative ml-auto flex items-center justify-center"
+              style={{ width: u(88), height: u(88), borderRadius: u(26), background: 'rgba(255,255,255,.72)', backdropFilter: 'blur(10px)', border: '1px solid rgba(255,255,255,.9)', boxShadow: `0 ${u(8)} ${u(24)} rgba(60,30,140,.18)` }}>
+              <Bell fill="#5d3fd3" color="#5d3fd3" style={{ width: u(40), height: u(40) }} />
+              {nonLues > 0 && <span className="absolute rounded-full" style={{ right: u(-2), top: u(-2), width: u(22), height: u(22), background: '#ff3b30', border: `${u(3)} solid #fff`, animation: 'pulse-dot 2s infinite' }} />}
+            </button>
+          </header>
+
+          {/* bulle du chat */}
+          <div className="flotte absolute" style={{ left: u(470), top: u(222), width: u(304) }}>
+            <div className="relative" style={{ background: 'rgba(255,255,255,.94)', borderRadius: u(52), padding: `${u(28)} ${u(20)} ${u(26)} ${u(42)}`,
+              boxShadow: `0 ${u(14)} ${u(40)} rgba(90,50,190,.28), 0 0 ${u(30)} rgba(151,71,255,.25)` }}>
+              <p style={{ fontSize: t(29, 12), fontWeight: 700, lineHeight: 1.32, letterSpacing: '-0.03em', color: '#17132C' }}>{bulle}</p>
+              <svg viewBox="0 0 40 40" className="absolute" style={{ left: u(-16), bottom: u(20), width: u(48), height: u(48) }}>
+                <path d="M40 4 C30 18 18 30 0 36 C18 34 32 28 40 22 Z" fill="rgba(255,255,255,.94)" />
+              </svg>
+            </div>
+          </div>
+
+          {/* carte Mission du jour */}
+          <section className="verre-sombre relative text-white" style={{ margin: `${u(368)} ${u(26)} 0`, borderRadius: u(52), height: u(416), padding: `${u(20)} ${u(28)} 0 ${u(48)}` }}>
+            <div className="flex">
+              <div className="min-w-0" style={{ width: u(380) }}>
+                <span className="badge-mission inline-flex items-center" style={{ marginTop: u(2), height: u(40), padding: `0 ${u(18)}`, borderRadius: u(20), fontSize: t(21), fontWeight: 700, letterSpacing: '-0.01em', gap: u(10) }}>
+                  {etat.missionFaite ? 'Mission accomplie' : m.jour === 1 && etat.index === 0 ? 'Mission du jour' : `Mission du jour · Jour ${etat.index + 1}`} <span>{etat.missionFaite ? '✅' : '🎯'}</span>
+                </span>
+                <h2 style={{ fontSize: u(m.titre.length > 16 ? 50 : 56), fontWeight: 800, lineHeight: 1.0, letterSpacing: '-0.035em', marginTop: u(22) }}>
+                  {m.jour === 1 ? <>Range ta<br />chambre ! <span style={{ fontSize: '.85em' }}>{m.emoji}</span></> : <>{m.titre} <span style={{ fontSize: '.85em' }}>{m.emoji}</span></>}
+                </h2>
+                <p style={{ fontSize: t(22, 10), lineHeight: 1.38, color: 'rgba(255,255,255,.86)', marginTop: u(22), letterSpacing: '-0.01em', fontWeight: 500 }}>{m.desc}</p>
+              </div>
+              <button onClick={() => ouvrir('image')} className="pression ml-auto overflow-hidden" aria-label="Voir l'image de la mission"
+                style={{ width: u(310), height: u(266), marginTop: u(-11), borderRadius: u(40), border: `${u(4)} solid rgba(255,255,255,.85)`, boxShadow: `0 0 ${u(28)} rgba(151,71,255,.35)`, background: '#f3efff' }}>
+                <img src={m.image} alt={m.titre} className={`h-full w-full ${m.jour === 1 ? 'object-cover' : 'object-contain'}`} style={m.jour === 1 ? {} : { padding: u(30) }} />
+              </button>
+            </div>
+
+            <div className="absolute flex items-center" style={{ left: u(48), right: u(30), bottom: u(24) }}>
+              <button onClick={basculerChrono} className="pression flex items-center text-left" aria-label="Démarrer ou mettre en pause le chronomètre">
+                <span className="relative">
+                  <Chrono />
+                  {m.minutes != null && !etat.missionFaite && (
+                    <span className="absolute flex items-center justify-center rounded-full" style={{ right: u(-6), bottom: u(-2), width: u(30), height: u(30), background: '#fff' }}>
+                      {etat.fin == null || etat.pause != null ? <Play fill="#7138F5" color="#7138F5" style={{ width: '50%', height: '50%' }} /> : <Pause fill="#7138F5" color="#7138F5" style={{ width: '50%', height: '50%' }} />}
+                    </span>
+                  )}
+                </span>
+                <span style={{ marginLeft: u(32) }}>
+                  <span className="block" style={{ fontSize: t(22, 10), fontWeight: 500, color: 'rgba(255,255,255,.88)' }}>
+                    {m.minutes == null ? 'Durée' : etat.missionFaite ? 'Terminée' : etat.fin == null ? 'Temps restant' : etat.pause != null ? 'En pause' : expire ? 'Temps écoulé' : 'Temps restant'}
+                  </span>
+                  <span className="block tabular-nums" style={{ fontSize: u(m.minutes == null ? 34 : 56), fontWeight: 800, lineHeight: 1.05, letterSpacing: '-0.02em', color: expire ? '#ff9db3' : '#fff' }}>
+                    {m.minutes == null ? 'Journée' : fmt(reste)}
+                  </span>
+                </span>
+              </button>
+              {etat.missionFaite ? (
+                <button onClick={() => ouvrir('suivante')} className="pression btn-violet ml-auto flex items-center justify-center text-white"
+                  style={{ width: u(350), height: u(90), borderRadius: u(45), fontSize: u(27), fontWeight: 700, gap: u(16) }}>
+                  Mission suivante <ChevronRight strokeWidth={3} style={{ width: u(34), height: u(34) }} />
+                </button>
+              ) : (
+                <button onClick={() => ouvrir('valider')} className="pression btn-violet ml-auto flex items-center text-white"
+                  style={{ width: u(350), height: u(90), borderRadius: u(45), fontSize: u(28), fontWeight: 700, padding: `0 ${u(40)}`, letterSpacing: '-0.02em' }}>
+                  <Check strokeWidth={3.2} style={{ width: u(40), height: u(40) }} />
+                  <span style={{ marginLeft: u(16) }}>J'ai terminé !</span>
+                  <ChevronRight strokeWidth={3} className="ml-auto" style={{ width: u(34), height: u(34) }} />
+                </button>
+              )}
+            </div>
+          </section>
+
+          {/* Applications bloquées */}
+          <section className="verre-blanc relative" style={{ margin: `${u(24)} ${u(26)} 0`, borderRadius: u(46), height: u(212), padding: `${u(20)} ${u(34)} 0` }}>
+            <div className="flex items-center">
+              <span className="flex items-center justify-center" style={{ width: u(34), height: u(34), borderRadius: u(9), background: '#7138F5' }}>
+                {appsDebloquees ? <LockOpen color="#fff" strokeWidth={2.8} style={{ width: '62%', height: '62%' }} /> : <Lock color="#fff" strokeWidth={2.8} style={{ width: '62%', height: '62%' }} />}
+              </span>
+              <h3 style={{ marginLeft: u(18), fontSize: u(26), fontWeight: 700, letterSpacing: '-0.025em' }}>{appsDebloquees ? 'Applications débloquées' : 'Applications bloquées'}</h3>
+              <button onClick={() => ouvrir('blocage')} className="pression ml-auto flex items-center" style={{ fontSize: t(18), fontWeight: 600, color: '#5a3fd0', gap: u(8), letterSpacing: '-0.01em' }}>
+                {appsDebloquees ? 'Jusqu’à demain' : 'Débloquées après mission'} <ChevronDown strokeWidth={3} style={{ width: u(26), height: u(26) }} />
+              </button>
+            </div>
+            <div className="flex items-start" style={{ marginTop: u(22), marginLeft: u(-14), marginRight: u(-14) }}>
+              {APPS.map((a, i) => {
+                const bloquee = etat.appsBloquees.includes(a.id) && !appsDebloquees;
+                return (
+                  <React.Fragment key={a.id}>
+                    {i > 0 && <span style={{ width: 1, height: u(70), marginTop: u(14), background: 'linear-gradient(transparent,#e7e1f3,transparent)' }} />}
+                    <button onClick={() => ouvrir({ app: a.id })} className="pression flex flex-1 flex-col items-center" aria-label={`${a.nom} : ${bloquee ? 'bloquée' : 'débloquée'}`}>
+                      <span className="relative" style={{ filter: bloquee ? 'none' : 'none' }}>
+                        <LogoApp id={a.id} />
+                        <span className="absolute" style={{ right: u(-14), bottom: u(-12) }}><CadenasRond taille={34} ouvert={!bloquee} /></span>
+                      </span>
+                      <span style={{ marginTop: u(18), fontSize: t(20), fontWeight: 600, letterSpacing: '-0.02em' }}>{a.nom}</span>
+                    </button>
+                  </React.Fragment>
+                );
+              })}
+            </div>
+          </section>
+
+          {/* Progression */}
+          <section className="carte-violette relative flex items-center text-white" style={{ margin: `${u(26)} ${u(26)} 0`, borderRadius: u(52), height: u(166) }}>
+            <button onClick={() => ouvrir({ onglet: 'stats' })} className="pression flex items-center text-left" style={{ paddingLeft: u(46), width: u(466) }}>
+              <GraphiqueSerie />
+              <span style={{ marginLeft: u(40) }}>
+                <span className="flex items-center" style={{ fontSize: t(24, 10), fontWeight: 500, color: '#d9ccff', gap: u(8) }}>🔥 Ta série</span>
+                <span className="block" style={{ fontSize: u(45), fontWeight: 800, letterSpacing: '-0.035em', lineHeight: 1.12 }}>{etat.serie} jours</span>
+                <span className="block" style={{ fontSize: t(18), fontWeight: 500, color: 'rgba(255,255,255,.92)', marginTop: u(4) }}>
+                  {etat.serie >= 7 ? 'Tu es sur une belle lancée ! 🔥' : 'Chaque jour compte. Continue ! 💪'}
+                </span>
+              </span>
+            </button>
+            <span style={{ width: u(2), height: u(106), background: 'rgba(255,255,255,.45)' }} />
+            <button onClick={() => ouvrir({ onglet: 'recompenses' })} className="pression flex-1 text-left" style={{ padding: `0 ${u(46)} 0 ${u(46)}` }}>
+              <span className="flex items-center" style={{ marginLeft: u(14) }}>
+                <Etoile />
+                <span style={{ marginLeft: u(16) }}>
+                  <span className="block" style={{ fontSize: t(22, 10), fontWeight: 500, color: '#d9ccff' }}>Ton niveau</span>
+                  <span className="block" style={{ fontSize: u(30), fontWeight: 700, letterSpacing: '-0.02em', lineHeight: 1.15 }}>Niveau {etat.niveau}</span>
+                </span>
+              </span>
+              <span className="block overflow-hidden rounded-full" style={{ marginTop: u(16), height: u(16), background: 'rgba(130,100,220,.35)' }}>
+                <span className="block h-full rounded-full transition-all duration-700" style={{ width: `${(etat.xp / XP_NIVEAU) * 100}%`, background: 'linear-gradient(90deg,#9747FF,#b98bff)', boxShadow: '0 0 10px rgba(151,71,255,.8)' }} />
+              </span>
+              <span className="block text-right tabular-nums" style={{ fontSize: t(17), fontWeight: 600, marginTop: u(8) }}>{etat.xp} / {XP_NIVEAU} XP</span>
+            </button>
+          </section>
+
+          {/* Prochaines missions */}
+          <section className="verre-blanc relative" style={{ margin: `${u(24)} ${u(26)} 0`, borderRadius: u(46), padding: `${u(18)} ${u(20)} ${u(4)}`, height: u(252) }}>
+            <div className="flex items-center" style={{ padding: `0 ${u(14)} 0 ${u(14)}` }}>
+              <IconeCalendrier />
+              <h3 style={{ marginLeft: u(13), fontSize: u(26), fontWeight: 700, letterSpacing: '-0.025em' }}>Prochaines missions</h3>
+              <button onClick={() => ouvrir('toutes')} className="pression ml-auto flex items-center" style={{ fontSize: t(19), fontWeight: 600, gap: u(10), color: '#17132C' }}>
+                Voir tout <ChevronRight color="#7138F5" strokeWidth={3} style={{ width: u(28), height: u(28) }} />
+              </button>
+            </div>
+            <div className="grid grid-cols-3" style={{ gap: u(20), marginTop: u(16) }}>
+              {prochaines.map((p) => (
+                <button key={p.k} onClick={() => ouvrir({ mission: p.k })} className="pression relative text-left"
+                  style={{ height: u(178), borderRadius: u(32), padding: `${u(10)} ${u(16)}`, background: 'linear-gradient(180deg,#fbf9ff,#f4f0fd)', border: '1px solid rgba(255,255,255,.95)', boxShadow: `0 ${u(6)} ${u(18)} rgba(84,52,160,.10)` }}>
+                  <span className="block" style={{ fontSize: t(19), fontWeight: 600, letterSpacing: '-0.02em' }}>Jour {p.jourAffiche}</span>
+                  <span className="absolute" style={{ right: u(-6), top: u(4) }}><CadenasRond taille={36} clair /></span>
+                  <span className="block overflow-hidden" style={{ marginTop: u(2), height: u(54), borderRadius: u(14), background: '#efeaf8' }}>
+                    <img src={p.image} alt="" className={`h-full w-full ${p.jour === 1 ? 'object-cover' : 'object-contain'}`} />
+                  </span>
+                  <span className="block truncate" style={{ marginTop: u(12), fontSize: t(19), fontWeight: 600, letterSpacing: '-0.02em' }}>{p.court || p.titre}</span>
+                  <span className="flex items-start" style={{ marginTop: u(6), fontSize: t(16, 8), fontWeight: 500, color: '#5b4f86', gap: u(8), lineHeight: 1.15 }}>
+                    <Clock style={{ width: u(18), height: u(18), flex: 'none', marginTop: u(1) }} />
+                    {p.minutes == null ? <span>Tout au long<br />de la journée</span> : `${p.minutes} min`}
+                  </span>
+                </button>
+              ))}
+            </div>
+          </section>
+        </div>
+      );
+    }
+
+    /* ================= STATS ================= */
+    function Stats({ etat }) {
+      const jours = ['L', 'M', 'M', 'J', 'V', 'S', 'D'];
+      const aujourd = (new Date().getDay() + 6) % 7;
+      const valeurs = jours.map((_, i) => (i < aujourd ? 1 : i === aujourd ? (etat.missionFaite ? 1 : 0) : 0));
+      const total = 11 + etat.terminees + (etat.serie > 0 ? 1 : 0);
+      return (
+        <EcranSimple titre="Stats" sousTitre="Ta discipline, en chiffres.">
+          <div className="grid grid-cols-2" style={{ gap: u(24) }}>
+            {[['🔥', 'Série actuelle', `${etat.serie} jours`], ['⭐', 'Niveau', `${etat.niveau}`], ['✅', 'Missions validées', `${total}`], ['⚡', 'XP du niveau', `${etat.xp} / ${XP_NIVEAU}`]].map(([e, l, v]) => (
+              <div key={l} className="verre-blanc" style={{ borderRadius: u(40), padding: u(30) }}>
+                <div style={{ fontSize: u(40) }}>{e}</div>
+                <div style={{ fontSize: t(20), color: '#5b4f86', fontWeight: 500, marginTop: u(8) }}>{l}</div>
+                <div style={{ fontSize: u(40), fontWeight: 800, letterSpacing: '-0.03em' }}>{v}</div>
+              </div>
+            ))}
+          </div>
+          <div className="carte-violette text-white" style={{ borderRadius: u(46), padding: u(36), marginTop: u(26) }}>
+            <div style={{ fontSize: u(26), fontWeight: 700 }}>Cette semaine</div>
+            <div className="flex items-end justify-between" style={{ height: u(200), marginTop: u(24) }}>
+              {valeurs.map((v, i) => (
+                <div key={i} className="flex flex-col items-center" style={{ gap: u(12) }}>
+                  <div className="transition-all duration-700" style={{ width: u(54), height: u(v ? 150 : 26), borderRadius: u(16), background: v ? 'linear-gradient(180deg,#c7a6ff,#7a3cf6)' : 'rgba(255,255,255,.14)', boxShadow: v ? '0 0 14px rgba(151,71,255,.6)' : 'none' }} />
+                  <span style={{ fontSize: t(20), color: i === aujourd ? '#fff' : '#bfb0ee', fontWeight: i === aujourd ? 700 : 500 }}>{jours[i]}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+          <h3 style={{ fontSize: u(28), fontWeight: 700, marginTop: u(36), marginBottom: u(16) }}>Historique</h3>
+          {etat.historique.length === 0 ? (
+            <p className="verre-blanc" style={{ borderRadius: u(36), padding: u(30), fontSize: t(21), color: '#5b4f86' }}>Valide ta première mission pour la voir apparaître ici.</p>
+          ) : (
+            <div className="verre-blanc" style={{ borderRadius: u(36), padding: `${u(8)} ${u(30)}` }}>
+              {etat.historique.slice().reverse().map((h, i) => (
+                <div key={i} className="flex items-center" style={{ padding: `${u(20)} 0`, borderTop: i ? '1px solid #eee8fa' : 'none', gap: u(20) }}>
+                  <span className="flex items-center justify-center rounded-full" style={{ width: u(56), height: u(56), background: '#f1edff', fontSize: u(28) }}>{h.emoji}</span>
+                  <span className="flex-1">
+                    <span className="block" style={{ fontSize: t(22), fontWeight: 600 }}>{h.titre}</span>
+                    <span className="block" style={{ fontSize: t(18), color: '#7a6fa3' }}>{new Date(h.date).toLocaleString('fr-FR', { dateStyle: 'medium', timeStyle: 'short' })}</span>
+                  </span>
+                  <span style={{ fontSize: t(20), fontWeight: 700, color: '#7138F5' }}>+{XP_PAR_MISSION} XP</span>
+                </div>
+              ))}
+            </div>
+          )}
+        </EcranSimple>
+      );
+    }
+
+    /* ================= RÉCOMPENSES ================= */
+    function Recompenses({ etat }) {
+      const total = etat.terminees;
+      const badges = [
+        { e: '🎯', n: 'Première mission', ok: total >= 1, d: 'Valider une mission' },
+        { e: '🔥', n: 'Série de 7 jours', ok: etat.serie >= 7, d: '7 jours d’affilée' },
+        { e: '🏆', n: 'Série de 30 jours', ok: etat.serie >= 30, d: '30 jours d’affilée' },
+        { e: '⭐', n: 'Niveau 5', ok: etat.niveau >= 5, d: 'Atteindre le niveau 5' },
+        { e: '📚', n: 'Lecteur', ok: etat.historique.some((h) => h.jour === 3), d: 'Valider « Lis 10 pages »' },
+        { e: '💪', n: 'Costaud', ok: etat.historique.some((h) => h.jour === 2), d: 'Valider « Fais 15 pompes »' },
+      ];
+      return (
+        <EcranSimple titre="Récompenses" sousTitre="Ce que ta discipline t'a rapporté.">
+          <div className="carte-violette relative overflow-hidden text-white" style={{ borderRadius: u(50), height: u(420) }}>
+            <img src="img/chat.jpg" alt="Le chat Discipline+" className="absolute right-0 top-0 h-full object-cover" style={{ width: '52%', objectPosition: '50% 12%', maskImage: 'linear-gradient(90deg,transparent,#000 30%)', WebkitMaskImage: 'linear-gradient(90deg,transparent,#000 30%)' }} />
+            <div className="relative" style={{ padding: u(40), width: '60%' }}>
+              <Etoile taille={80} />
+              <div style={{ fontSize: t(22), color: '#d9ccff', marginTop: u(16) }}>Ton niveau</div>
+              <div style={{ fontSize: u(60), fontWeight: 800, letterSpacing: '-0.03em' }}>Niveau {etat.niveau}</div>
+              <div className="overflow-hidden rounded-full" style={{ marginTop: u(20), height: u(16), background: 'rgba(130,100,220,.35)' }}>
+                <div className="h-full rounded-full" style={{ width: `${(etat.xp / XP_NIVEAU) * 100}%`, background: 'linear-gradient(90deg,#9747FF,#b98bff)' }} />
+              </div>
+              <div style={{ fontSize: t(19), marginTop: u(10) }}>Encore {XP_NIVEAU - etat.xp} XP pour le niveau {etat.niveau + 1}</div>
+            </div>
+          </div>
+          <h3 style={{ fontSize: u(28), fontWeight: 700, marginTop: u(36), marginBottom: u(16) }}>Badges</h3>
+          <div className="grid grid-cols-3" style={{ gap: u(20) }}>
+            {badges.map((b) => (
+              <div key={b.n} className="verre-blanc flex flex-col items-center text-center" style={{ borderRadius: u(36), padding: `${u(26)} ${u(12)}`, opacity: b.ok ? 1 : .55 }}>
+                <span className="flex items-center justify-center rounded-full" style={{ width: u(90), height: u(90), fontSize: u(44), background: b.ok ? 'linear-gradient(145deg,#b78bff,#7138F5)' : '#ece8f5', filter: b.ok ? 'none' : 'grayscale(1)' }}>{b.e}</span>
+                <span style={{ fontSize: t(19), fontWeight: 700, marginTop: u(14), lineHeight: 1.15 }}>{b.n}</span>
+                <span style={{ fontSize: t(15, 8), color: '#7a6fa3', marginTop: u(6) }}>{b.ok ? 'Débloqué ✓' : b.d}</span>
+              </div>
+            ))}
+          </div>
+        </EcranSimple>
+      );
+    }
+
+    /* ================= PARAMÈTRES ================= */
+    function Parametres({ etat, maj, reinitialiser, perm, activerAlertes, installable, installer }) {
+      const [confirmer, setConfirmer] = useState(false);
+      const basculer = (id) => maj({ appsBloquees: etat.appsBloquees.includes(id) ? etat.appsBloquees.filter((x) => x !== id) : [...etat.appsBloquees, id] });
+      return (
+        <EcranSimple titre="Paramètres" sousTitre="Règle Discipline+ à ta façon.">
+          <h3 style={{ fontSize: u(26), fontWeight: 700, marginBottom: u(14) }}>Applications à bloquer</h3>
+          <div className="verre-blanc" style={{ borderRadius: u(40), padding: `${u(6)} ${u(30)}` }}>
+            {APPS.map((a, i) => {
+              const on = etat.appsBloquees.includes(a.id);
+              return (
+                <label key={a.id} className="flex cursor-pointer items-center" style={{ padding: `${u(18)} 0`, borderTop: i ? '1px solid #eee8fa' : 'none', gap: u(22) }}>
+                  <LogoApp id={a.id} taille={60} />
+                  <span className="flex-1" style={{ fontSize: t(23), fontWeight: 600 }}>{a.nom}</span>
+                  <Interrupteur on={on} onChange={() => basculer(a.id)} />
+                </label>
+              );
+            })}
+          </div>
+          <div className="flex items-start" style={{ marginTop: u(18), gap: u(14), padding: `${u(22)} ${u(26)}`, borderRadius: u(30), background: '#f1edff', color: '#4c3c8f', fontSize: t(18) }}>
+            <Info style={{ width: u(30), height: u(30), flex: 'none', marginTop: u(2) }} />
+            <span>Ici, le blocage est affiché dans l'interface. Le vrai blocage des applis sur ton téléphone demandera la version native (Temps d'écran sur iPhone, Bien-être numérique sur Android).</span>
+          </div>
+          <h3 style={{ fontSize: u(26), fontWeight: 700, margin: `${u(34)} 0 ${u(14)}` }}>Préférences</h3>
+          <div className="verre-blanc" style={{ borderRadius: u(40), padding: `${u(6)} ${u(30)}` }}>
+            <label className="flex cursor-pointer items-center" style={{ padding: `${u(24)} 0`, gap: u(20) }}>
+              <span className="flex-1" style={{ fontSize: t(23), fontWeight: 600 }}>Vibration à la validation</span>
+              <Interrupteur on={etat.sons} onChange={() => maj({ sons: !etat.sons })} />
+            </label>
+            <label className="flex cursor-pointer items-center" style={{ padding: `${u(24)} 0`, gap: u(20), borderTop: '1px solid #eee8fa' }}>
+              <span className="flex-1">
+                <span className="block" style={{ fontSize: t(23), fontWeight: 600 }}>Notification à la fin du chrono</span>
+                <span className="block" style={{ fontSize: t(17), color: '#7a6fa3', marginTop: u(4) }}>
+                  {perm === 'indisponible' ? 'Ce navigateur ne propose pas les notifications.'
+                    : perm === 'denied' ? 'Bloquées : autorise-les dans les réglages du site, puis réessaie.'
+                    : perm === 'granted' ? 'Tu es prévenu quand le temps de la mission est écoulé.'
+                    : 'Active pour être prévenu quand le temps est écoulé.'}
+                </span>
+              </span>
+              <Interrupteur on={etat.alertes && perm === 'granted'} onChange={() => (etat.alertes && perm === 'granted' ? maj({ alertes: false }) : activerAlertes())} />
+            </label>
+          </div>
+          {installable && (
+            <button onClick={installer} className="pression btn-violet flex w-full items-center justify-center text-white"
+              style={{ marginTop: u(26), height: u(96), borderRadius: u(48), fontSize: t(23), fontWeight: 700, gap: u(14) }}>
+              <Download style={{ width: u(34), height: u(34) }} /> Installer l'application
+            </button>
+          )}
+          <button onClick={() => setConfirmer(true)} className="pression verre-blanc flex w-full items-center justify-center"
+            style={{ marginTop: u(34), height: u(96), borderRadius: u(48), fontSize: t(23), fontWeight: 700, color: '#d63a5a', gap: u(14) }}>
+            <RotateCcw style={{ width: u(32), height: u(32) }} /> Réinitialiser ma progression
+          </button>
+          <Feuille ouverte={confirmer} onFermer={() => setConfirmer(false)}>
+            <h3 style={{ fontSize: u(36), fontWeight: 800 }}>Tout remettre à zéro ?</h3>
+            <p style={{ fontSize: t(22), color: '#5b4f86', marginTop: u(14) }}>Ta série, ton niveau, ton XP et ton historique reviendront à leur état de départ.</p>
+            <div className="grid grid-cols-2" style={{ gap: u(20), marginTop: u(34) }}>
+              <button onClick={() => setConfirmer(false)} className="pression" style={{ height: u(92), borderRadius: u(46), background: '#f1edff', fontSize: t(23), fontWeight: 700, color: '#5b2fd6' }}>Annuler</button>
+              <button onClick={() => { reinitialiser(); setConfirmer(false); }} className="pression text-white" style={{ height: u(92), borderRadius: u(46), background: '#d63a5a', fontSize: t(23), fontWeight: 700 }}>Réinitialiser</button>
+            </div>
+          </Feuille>
+        </EcranSimple>
+      );
+    }
+    function Interrupteur({ on, onChange }) {
+      return (
+        <button type="button" role="switch" aria-checked={on} onClick={(e) => { e.preventDefault(); onChange(); }} className="relative transition-colors"
+          style={{ width: u(96), height: u(56), borderRadius: u(28), background: on ? 'linear-gradient(90deg,#9747FF,#7138F5)' : '#ddd6ee', flex: 'none' }}>
+          <span className="absolute rounded-full bg-white transition-all" style={{ top: u(5), left: on ? u(45) : u(5), width: u(46), height: u(46), boxShadow: '0 2px 6px rgba(0,0,0,.2)' }} />
+        </button>
+      );
+    }
+    function EcranSimple({ titre, sousTitre, children }) {
+      return (
+        <div className="vue" style={{ padding: `${u(110)} ${u(32)} ${u(170)}` }}>
+          <div className="flex items-center" style={{ gap: u(24), marginBottom: u(34) }}>
+            <LogoD taille={76} />
+            <div>
+              <h1 style={{ fontSize: u(46), fontWeight: 800, letterSpacing: '-0.035em', lineHeight: 1.05 }}>{titre}</h1>
+              <p style={{ fontSize: t(21), color: '#5b4f86', fontWeight: 500, marginTop: u(6) }}>{sousTitre}</p>
+            </div>
+          </div>
+          {children}
+        </div>
+      );
+    }
+
+    /* ================= NAVIGATION ================= */
+    function IconeStats({ couleur }) {
+      return <svg viewBox="0 0 24 24" style={{ width: u(40), height: u(40) }}><rect x="3" y="11" width="4.5" height="10" rx="2.2" fill={couleur} /><rect x="9.75" y="3" width="4.5" height="18" rx="2.2" fill={couleur} /><rect x="16.5" y="8" width="4.5" height="13" rx="2.2" fill={couleur} /></svg>;
+    }
+    function BarreNav({ onglet, setOnglet }) {
+      const items = [
+        { id: 'accueil', nom: 'Accueil', icone: (c) => <Home fill={c} color={c} strokeWidth={2} style={{ width: u(44), height: u(44) }} /> },
+        { id: 'stats', nom: 'Stats', icone: (c) => <IconeStats couleur={c} /> },
+        { id: 'recompenses', nom: 'Récompenses', icone: (c) => <Trophy fill={c} color={c} style={{ width: u(42), height: u(42) }} /> },
+        { id: 'parametres', nom: 'Paramètres', icone: (c) => (
+          <svg viewBox="0 0 24 24" style={{ width: u(44), height: u(44) }}>
+            {[0, 45, 90, 135, 180, 225, 270, 315].map((a) => <rect key={a} x="10" y="1.2" width="4" height="5" rx="1.2" fill={c} transform={`rotate(${a} 12 12)`} />)}
+            <circle cx="12" cy="12" r="8" fill={c} /><circle cx="12" cy="12" r="3.4" fill="#fff" />
+          </svg>) },
+      ];
+      return (
+        <nav className="fixed left-1/2 z-40 -translate-x-1/2" style={{ bottom: `calc(${u(50)} + env(safe-area-inset-bottom, 0px))`, width: 'var(--w)', padding: `0 ${u(22)}` }}>
+          <div className="relative flex" style={{ height: u(106), borderRadius: u(52), background: 'rgba(255,255,255,.95)', backdropFilter: 'blur(16px)', border: '1px solid #fff',
+            boxShadow: `0 ${u(14)} ${u(40)} rgba(70,40,150,.18)` }}>
+            {items.map((it, i) => {
+              const actif = onglet === it.id;
+              const c = actif ? '#6236ef' : '#7d6bb8';
+              return (
+                <button key={it.id} onClick={() => setOnglet(it.id)} className="pression relative flex flex-1 flex-col items-center justify-center" aria-current={actif ? 'page' : undefined}
+                  style={{ gap: u(6), background: actif ? 'linear-gradient(180deg,rgba(241,237,255,0),rgba(241,237,255,.9))' : 'transparent', borderRadius: u(40) }}>
+                  {it.icone(c)}
+                  <span style={{ fontSize: t(19), fontWeight: actif ? 700 : 600, color: c, letterSpacing: '-0.01em' }}>{it.nom}</span>
+                  {actif && <span className="absolute rounded-full" style={{ bottom: u(-1), height: u(5), width: '74%', background: '#6236ef' }} />}
+                </button>
+              );
+            })}
+          </div>
+        </nav>
+      );
+    }
+
+    /* ================= APP ================= */
+    function App() {
+      const [etat, setEtat] = useState(charger);
+      const [onglet, setOnglet] = useState('accueil');
+      const [panneau, setPanneau] = useState(null);
+      const [photo, setPhoto] = useState(null);
+      const [coches, setCoches] = useState([]);
+      const [etape, setEtape] = useState(1);
+      const [fete, setFete] = useState(false);
+      const [toast, setToast] = useState(null);
+      const fichier = useRef(null);
+
+      useEffect(() => { try { localStorage.setItem(CLE, JSON.stringify(etat)); } catch (e) {} }, [etat]);
+      // démarre le chronomètre de la mission du jour au premier lancement
+      useEffect(() => {
+        const m = MISSIONS[etat.index % MISSIONS.length];
+        if (etat.fin == null && !etat.missionFaite && m.minutes != null) maj({ fin: Date.now() + m.minutes * 60000 });
+      }, [etat.index]);
+      useEffect(() => { if (!toast) return; const id = setTimeout(() => setToast(null), 2600); return () => clearTimeout(id); }, [toast]);
+
+      const maj = (p) => setEtat((e) => ({ ...e, ...p }));
+      const m = MISSIONS[etat.index % MISSIONS.length];
+
+      /* --- notification quand le chronomètre arrive à 0 --- */
+      const [perm, setPerm] = useState(permissionNotifs);
+      const activerAlertes = async () => {
+        const p = await demanderPermissionNotifs();
+        setPerm(p);
+        if (p === 'granted') { maj({ alertes: true }); setToast('Notifications activées 🔔'); }
+        else if (p === 'denied') setToast('Notifications bloquées par le navigateur');
+        else if (p === 'indisponible') setToast('Notifications indisponibles ici');
+      };
+      const proposerAlertes = () => { if (etat.alertes && permissionNotifs() === 'default') activerAlertes(); };
+      useEffect(() => {
+        if (etat.fin == null || etat.pause != null || etat.missionFaite || etat.alerteFin === etat.fin) return;
+        const fin = etat.fin, titre = m.titre, alertes = etat.alertes;
+        const sonner = () => {
+          const texte = `Le chrono de « ${titre} » est à zéro. Valide ta mission pour débloquer tes applis.`;
+          setEtat((e) => (e.fin !== fin || e.alerteFin === fin ? e
+            : { ...e, alerteFin: fin, notifs: [{ id: Date.now(), titre: 'Temps écoulé ⏰', texte, lu: false }, ...e.notifs] }));
+          // pas de notification système si on rouvre l'appli longtemps après l'échéance
+          if (alertes && Date.now() - fin < 60000) {
+            notifier('Temps écoulé ⏰', { body: texte, icon: 'icons/icon-192.png', badge: 'icons/favicon-48.png', tag: 'chrono-fin', lang: 'fr', vibrate: [120, 60, 120] });
+          }
+        };
+        const id = setTimeout(sonner, Math.max(0, fin - Date.now()));
+        return () => clearTimeout(id);
+      }, [etat.fin, etat.pause, etat.missionFaite, etat.alerteFin, etat.alertes]);
+
+      /* --- installation de l'application --- */
+      const [installable, setInstallable] = useState(!!window.__invitation);
+      useEffect(() => {
+        const suivre = () => setInstallable(!!window.__invitation);
+        window.addEventListener('dp-installation', suivre);
+        return () => window.removeEventListener('dp-installation', suivre);
+      }, []);
+      const installer = async () => {
+        const invitation = window.__invitation;
+        if (!invitation) return;
+        invitation.prompt();
+        try { await invitation.userChoice; } catch (e) {}
+        window.__invitation = null; setInstallable(false);
+      };
+
+      const ouvrir = (cle) => {
+        if (cle && cle.onglet) { setOnglet(cle.onglet); window.scrollTo({ top: 0, behavior: 'smooth' }); return; }
+        if (cle === 'valider') { setPhoto(null); setCoches([]); setEtape(1); }
+        if (cle === 'notifs') maj({ notifs: etat.notifs.map((n) => ({ ...n, lu: true })) });
+        setPanneau(cle);
+      };
+
+      const valider = () => {
+        let xp = etat.xp + XP_PAR_MISSION, niveau = etat.niveau, monte = false;
+        while (xp >= XP_NIVEAU) { xp -= XP_NIVEAU; niveau += 1; monte = true; }
+        setEtat((e) => ({ ...e, xp, niveau, serie: e.serie + 1, terminees: e.terminees + 1, missionFaite: true, pause: null,
+          historique: [...e.historique, { titre: m.titre, emoji: m.emoji, jour: m.jour, date: Date.now() }],
+          notifs: [{ id: Date.now(), titre: monte ? `Niveau ${niveau} atteint ! ⭐` : 'Mission validée ✅', texte: `+${XP_PAR_MISSION} XP. Tes applications sont débloquées.`, lu: false }, ...e.notifs] }));
+        try { if (etat.sons && navigator.vibrate && navigator.userActivation && navigator.userActivation.hasBeenActive) navigator.vibrate([40, 60, 40]); } catch (e) {}
+        setEtape(2); setFete(true); setTimeout(() => setFete(false), 3600);
+      };
+
+      const missionSuivante = () => {
+        const index = etat.index + 1;
+        const nm = MISSIONS[index % MISSIONS.length];
+        maj({ index, missionFaite: false, pause: null, fin: nm.minutes != null ? Date.now() + nm.minutes * 60000 : null });
+        setPanneau(null); setToast(`Nouvelle mission : ${nm.titre}`);
+      };
+
+      const reinitialiser = () => { setEtat({ ...etatInitial(), fin: Date.now() + MISSIONS[0].minutes * 60000 }); setToast('Progression réinitialisée'); setOnglet('accueil'); };
+
+      const peutValider = (!m.photo || photo) && coches.length === m.checklist.length;
+      const appSel = panneau && panneau.app ? APPS.find((a) => a.id === panneau.app) : null;
+      const missionSel = panneau && panneau.mission ? { ...MISSIONS[(etat.index + panneau.mission) % MISSIONS.length], jourAffiche: etat.index + panneau.mission + 1, k: panneau.mission } : null;
+
+      return (
+        <div className="ecran">
+          {onglet === 'accueil' && <Accueil etat={etat} maj={maj} ouvrir={ouvrir} proposerAlertes={proposerAlertes} />}
+          {onglet === 'stats' && <Stats etat={etat} />}
+          {onglet === 'recompenses' && <Recompenses etat={etat} />}
+          {onglet === 'parametres' && <Parametres etat={etat} maj={maj} reinitialiser={reinitialiser} perm={perm} activerAlertes={activerAlertes} installable={installable} installer={installer} />}
+          <BarreNav onglet={onglet} setOnglet={(o) => { setOnglet(o); window.scrollTo({ top: 0 }); }} />
+
+          {/* Validation de la mission */}
+          <Feuille ouverte={panneau === 'valider'} onFermer={() => setPanneau(null)}>
+            {etape === 1 ? (
+              <div>
+                <span className="badge-mission inline-flex items-center text-white" style={{ height: u(44), padding: `0 ${u(20)}`, borderRadius: u(22), fontSize: t(20), fontWeight: 700 }}>Validation 🎯</span>
+                <h3 style={{ fontSize: u(42), fontWeight: 800, letterSpacing: '-0.03em', marginTop: u(18) }}>{m.titre} {m.emoji}</h3>
+                <p style={{ fontSize: t(22), color: '#5b4f86', marginTop: u(8) }}>{m.photo ? 'Montre-moi le résultat. Pas de triche, je vois tout. 😏' : 'Coche chaque étape. Je te fais confiance… pour cette fois. 😏'}</p>
+
+                {m.photo && (
+                  <div style={{ marginTop: u(26) }}>
+                    <input ref={fichier} type="file" accept="image/*" capture="environment" className="hidden"
+                      onChange={(e) => { const f = e.target.files && e.target.files[0]; if (!f) return; const r = new FileReader(); r.onload = () => setPhoto(r.result); r.readAsDataURL(f); }} />
+                    <button onClick={() => fichier.current && fichier.current.click()} className="pression relative flex w-full flex-col items-center justify-center overflow-hidden"
+                      style={{ height: u(360), borderRadius: u(40), border: photo ? 'none' : `${u(4)} dashed #c9b6ff`, background: '#f7f4ff', color: '#5b2fd6' }}>
+                      {photo ? <img src={photo} alt="Ta photo" className="absolute inset-0 h-full w-full object-cover" /> : (
+                        <>
+                          <span className="flex items-center justify-center rounded-full btn-violet" style={{ width: u(110), height: u(110) }}><Camera color="#fff" style={{ width: '45%', height: '45%' }} /></span>
+                          <span style={{ fontSize: t(24), fontWeight: 700, marginTop: u(18) }}>Prendre une photo</span>
+                          <span style={{ fontSize: t(18), color: '#7a6fa3', marginTop: u(4) }}>ou en choisir une dans ta galerie</span>
+                        </>
+                      )}
+                      {photo && <span className="absolute rounded-full bg-white/90" style={{ right: u(20), bottom: u(20), padding: `${u(10)} ${u(20)}`, fontSize: t(18), fontWeight: 700 }}>Changer</span>}
+                    </button>
+                    <p className="flex items-center" style={{ gap: u(10), fontSize: t(17), color: '#7a6fa3', marginTop: u(12) }}>
+                      <Info style={{ width: u(26), height: u(26), flex: 'none' }} /> La photo reste sur ton appareil : elle n'est ni envoyée ni analysée automatiquement.
+                    </p>
+                  </div>
+                )}
+
+                <div style={{ marginTop: u(26) }}>
+                  {m.checklist.map((c) => {
+                    const ok = coches.includes(c);
+                    return (
+                      <button key={c} onClick={() => setCoches((cs) => (cs.includes(c) ? cs.filter((x) => x !== c) : [...cs, c]))} className="pression flex w-full items-center"
+                        style={{ gap: u(20), padding: `${u(20)} ${u(24)}`, marginBottom: u(14), borderRadius: u(30), background: ok ? '#f1edff' : '#faf9fd', border: `${u(2)} solid ${ok ? '#b89cff' : '#eee8fa'}` }}>
+                        <span className="flex items-center justify-center rounded-full transition-all" style={{ width: u(46), height: u(46), background: ok ? 'linear-gradient(145deg,#9747FF,#7138F5)' : '#fff', border: ok ? 'none' : `${u(3)} solid #d8ccf6` }}>
+                          {ok && <Check color="#fff" strokeWidth={3.5} style={{ width: '60%', height: '60%' }} />}
+                        </span>
+                        <span style={{ fontSize: t(23), fontWeight: 600 }}>{c}</span>
+                      </button>
+                    );
+                  })}
+                </div>
+                <button disabled={!peutValider} onClick={valider} className="pression btn-violet flex w-full items-center justify-center text-white disabled:opacity-40 disabled:shadow-none"
+                  style={{ height: u(100), borderRadius: u(50), fontSize: u(29), fontWeight: 700, marginTop: u(16), gap: u(14) }}>
+                  <Check strokeWidth={3.2} style={{ width: u(38), height: u(38) }} /> Valider ma mission
+                </button>
+                {!peutValider && <p className="text-center" style={{ fontSize: t(18), color: '#7a6fa3', marginTop: u(12) }}>{m.photo && !photo ? 'Ajoute une photo et ' : ''}{coches.length < m.checklist.length ? 'coche toutes les étapes.' : ''}</p>}
+              </div>
+            ) : (
+              <div className="pop text-center">
+                <div className="relative mx-auto overflow-hidden" style={{ width: u(420), height: u(460), borderRadius: u(50), background: 'linear-gradient(180deg,#3a2a68,#1d1438)' }}>
+                  <img src="img/chat.jpg" alt="Le chat Discipline+ satisfait" className="h-full w-full object-cover" style={{ objectPosition: '50% 8%' }} />
+                </div>
+                <h3 style={{ fontSize: u(46), fontWeight: 800, letterSpacing: '-0.03em', marginTop: u(26) }}>Mission accomplie ! 🎉</h3>
+                <p style={{ fontSize: t(23), color: '#5b4f86', marginTop: u(8) }}>Pas mal… je savais que t'en étais capable. 😎</p>
+                <div className="grid grid-cols-3" style={{ gap: u(16), marginTop: u(28) }}>
+                  {[[`+${XP_PAR_MISSION}`, 'XP gagnés'], [`${etat.serie}`, 'jours de série'], ['5', 'applis débloquées']].map(([v, l]) => (
+                    <div key={l} style={{ background: '#f1edff', borderRadius: u(30), padding: `${u(20)} ${u(8)}` }}>
+                      <div style={{ fontSize: u(38), fontWeight: 800, color: '#7138F5' }}>{v}</div>
+                      <div style={{ fontSize: t(17), color: '#5b4f86', fontWeight: 500 }}>{l}</div>
+                    </div>
+                  ))}
+                </div>
+                <button onClick={() => setPanneau(null)} className="pression btn-violet flex w-full items-center justify-center text-white" style={{ height: u(100), borderRadius: u(50), fontSize: u(29), fontWeight: 700, marginTop: u(30) }}>
+                  Super, merci chef !
+                </button>
+              </div>
+            )}
+          </Feuille>
+
+          {/* Mission suivante */}
+          <Feuille ouverte={panneau === 'suivante'} onFermer={() => setPanneau(null)}>
+            {(() => { const nm = MISSIONS[(etat.index + 1) % MISSIONS.length]; return (
+              <div>
+                <h3 style={{ fontSize: u(40), fontWeight: 800, letterSpacing: '-0.03em' }}>Prêt pour la suite ?</h3>
+                <p style={{ fontSize: t(22), color: '#5b4f86', marginTop: u(8) }}>Ta prochaine mission : <b>Jour {etat.index + 2} — {nm.titre}</b>. Tes applis seront de nouveau bloquées jusqu'à ce que tu la valides.</p>
+                <div className="flex items-center" style={{ marginTop: u(24), gap: u(20), padding: u(22), borderRadius: u(36), background: '#f7f4ff' }}>
+                  <img src={nm.image} alt="" className="object-contain" style={{ width: u(150), height: u(100), borderRadius: u(20), background: '#efeaf8' }} />
+                  <div><div style={{ fontSize: t(24), fontWeight: 700 }}>{nm.titre} {nm.emoji}</div><div style={{ fontSize: t(19), color: '#7a6fa3' }}>{nm.minutes == null ? 'Tout au long de la journée' : `${nm.minutes} min`}</div></div>
+                </div>
+                <button onClick={missionSuivante} className="pression btn-violet flex w-full items-center justify-center text-white" style={{ height: u(100), borderRadius: u(50), fontSize: u(29), fontWeight: 700, marginTop: u(28) }}>Commencer maintenant</button>
+                <button onClick={() => setPanneau(null)} className="pression w-full" style={{ height: u(80), fontSize: t(22), fontWeight: 600, color: '#5b2fd6', marginTop: u(8) }}>Plus tard (profiter de mes applis)</button>
+              </div>); })()}
+          </Feuille>
+
+          {/* Détail d'une prochaine mission */}
+          <Feuille ouverte={!!missionSel} onFermer={() => setPanneau(null)}>
+            {missionSel && (
+              <div>
+                <div className="flex items-center" style={{ gap: u(14) }}>
+                  <span style={{ fontSize: t(22), fontWeight: 700, color: '#7138F5' }}>Jour {missionSel.jourAffiche}</span>
+                  <CadenasRond taille={40} clair />
+                </div>
+                <div className="overflow-hidden" style={{ marginTop: u(18), height: u(260), borderRadius: u(40), background: '#efeaf8' }}>
+                  <img src={missionSel.image} alt="" className={`h-full w-full ${missionSel.jour === 1 ? 'object-cover' : 'object-contain'}`} style={missionSel.jour === 1 ? {} : { padding: u(30) }} />
+                </div>
+                <h3 style={{ fontSize: u(42), fontWeight: 800, letterSpacing: '-0.03em', marginTop: u(22) }}>{missionSel.titre} {missionSel.emoji}</h3>
+                <p style={{ fontSize: t(22), color: '#5b4f86', marginTop: u(8) }}>{missionSel.desc}</p>
+                <p className="flex items-center" style={{ gap: u(10), fontSize: t(20), color: '#5b4f86', marginTop: u(14), fontWeight: 600 }}>
+                  <Clock style={{ width: u(28), height: u(28) }} /> {missionSel.minutes == null ? 'Tout au long de la journée' : `${missionSel.minutes} min`}
+                </p>
+                <div className="flex items-center" style={{ marginTop: u(26), gap: u(14), padding: `${u(22)} ${u(26)}`, borderRadius: u(30), background: '#f1edff', color: '#4c3c8f', fontSize: t(19), fontWeight: 500 }}>
+                  <Lock style={{ width: u(30), height: u(30), flex: 'none' }} />
+                  {missionSel.k === 1 && etat.missionFaite ? 'Ta mission du jour est validée : tu peux la commencer maintenant.' : missionSel.k === 1 ? 'Se débloque quand tu valides ta mission du jour.' : `Se débloque après ${missionSel.k} missions validées.`}
+                </div>
+                {missionSel.k === 1 && etat.missionFaite && (
+                  <button onClick={missionSuivante} className="pression btn-violet flex w-full items-center justify-center text-white" style={{ height: u(100), borderRadius: u(50), fontSize: u(29), fontWeight: 700, marginTop: u(26) }}>Commencer maintenant</button>
+                )}
+              </div>
+            )}
+          </Feuille>
+
+          {/* Toutes les missions */}
+          <Feuille ouverte={panneau === 'toutes'} onFermer={() => setPanneau(null)}>
+            <h3 style={{ fontSize: u(40), fontWeight: 800, letterSpacing: '-0.03em' }}>Programme</h3>
+            <p style={{ fontSize: t(21), color: '#5b4f86', marginTop: u(6), marginBottom: u(20) }}>Une mission par jour. Valide-la pour débloquer tes applis.</p>
+            {[0, 1, 2, 3].map((k) => {
+              const mm = MISSIONS[(etat.index + k) % MISSIONS.length];
+              const statut = k === 0 ? (etat.missionFaite ? 'Validée ✓' : 'En cours') : 'Verrouillée';
+              return (
+                <button key={k} onClick={() => (k === 0 ? setPanneau(null) : setPanneau({ mission: k }))} className="pression flex w-full items-center text-left"
+                  style={{ gap: u(20), padding: u(20), marginBottom: u(14), borderRadius: u(34), background: k === 0 ? '#f1edff' : '#faf9fd', border: `${u(2)} solid ${k === 0 ? '#c9b6ff' : '#eee8fa'}` }}>
+                  <img src={mm.image} alt="" className={mm.jour === 1 ? 'object-cover' : 'object-contain'} style={{ width: u(130), height: u(90), borderRadius: u(20), background: '#efeaf8' }} />
+                  <span className="flex-1">
+                    <span className="block" style={{ fontSize: t(18), color: '#7138F5', fontWeight: 700 }}>Jour {etat.index + k + 1}</span>
+                    <span className="block" style={{ fontSize: t(24), fontWeight: 700 }}>{mm.titre}</span>
+                    <span className="block" style={{ fontSize: t(18), color: '#7a6fa3' }}>{mm.minutes == null ? 'Toute la journée' : `${mm.minutes} min`} · {statut}</span>
+                  </span>
+                  {k > 0 && <CadenasRond taille={40} clair />}
+                </button>
+              );
+            })}
+          </Feuille>
+
+          {/* Détail d'une app */}
+          <Feuille ouverte={!!appSel} onFermer={() => setPanneau(null)}>
+            {appSel && (() => {
+              const suivie = etat.appsBloquees.includes(appSel.id);
+              const bloquee = suivie && !etat.missionFaite;
+              return (
+                <div className="text-center">
+                  <div className="relative mx-auto" style={{ width: u(150) }}><LogoApp id={appSel.id} taille={150} />
+                    <span className="absolute" style={{ right: u(-20), bottom: u(-16) }}><CadenasRond taille={60} ouvert={!bloquee} /></span></div>
+                  <h3 style={{ fontSize: u(40), fontWeight: 800, marginTop: u(30) }}>{appSel.nom}</h3>
+                  <p style={{ fontSize: t(22), color: '#5b4f86', marginTop: u(8) }}>
+                    {!suivie ? 'Cette application n’est pas bloquée (modifiable dans Paramètres).' : bloquee ? 'Bloquée jusqu’à la validation de ta mission du jour.' : 'Débloquée : mission du jour validée. Profite, avec modération ! 😉'}
+                  </p>
+                  {bloquee && (
+                    <button onClick={() => setPanneau('valider') || (setPhoto(null), setCoches([]), setEtape(1))} className="pression btn-violet flex w-full items-center justify-center text-white" style={{ height: u(100), borderRadius: u(50), fontSize: u(28), fontWeight: 700, marginTop: u(30) }}>
+                      Valider ma mission pour débloquer
+                    </button>
+                  )}
+                </div>
+              );
+            })()}
+          </Feuille>
+
+          {/* Explication du blocage */}
+          <Feuille ouverte={panneau === 'blocage'} onFermer={() => setPanneau(null)}>
+            <h3 style={{ fontSize: u(40), fontWeight: 800, letterSpacing: '-0.03em' }}>Comment ça marche ?</h3>
+            {[['🎯', 'Chaque jour, une mission', 'Le chat te donne une mission concrète à réaliser.'], ['🔒', 'Tes applis sont bloquées', 'TikTok, YouTube, Instagram, Snapchat et X restent verrouillées.'], ['✅', 'Tu valides, elles se débloquent', 'Mission validée = applis débloquées jusqu’au lendemain.']].map(([e, ti, tx]) => (
+              <div key={ti} className="flex items-start" style={{ gap: u(20), marginTop: u(24) }}>
+                <span className="flex items-center justify-center rounded-full" style={{ width: u(70), height: u(70), background: '#f1edff', fontSize: u(34), flex: 'none' }}>{e}</span>
+                <span><span className="block" style={{ fontSize: t(24), fontWeight: 700 }}>{ti}</span><span className="block" style={{ fontSize: t(20), color: '#5b4f86' }}>{tx}</span></span>
+              </div>
+            ))}
+            <button onClick={() => { setPanneau(null); setOnglet('parametres'); window.scrollTo({ top: 0 }); }} className="pression w-full" style={{ height: u(90), borderRadius: u(45), background: '#f1edff', color: '#5b2fd6', fontSize: t(22), fontWeight: 700, marginTop: u(34) }}>Choisir les applis à bloquer</button>
+          </Feuille>
+
+          {/* Image en grand */}
+          <Feuille ouverte={panneau === 'image'} onFermer={() => setPanneau(null)}>
+            <div className="overflow-hidden" style={{ borderRadius: u(40), background: '#efeaf8' }}>
+              <img src={m.image} alt={m.titre} className="w-full object-contain" style={{ maxHeight: '60vh', padding: m.jour === 1 ? 0 : u(40) }} />
+            </div>
+            <p style={{ fontSize: t(22), color: '#5b4f86', marginTop: u(18) }}>Objectif : {m.desc}</p>
+          </Feuille>
+
+          {/* Notifications */}
+          <Feuille ouverte={panneau === 'notifs'} onFermer={() => setPanneau(null)}>
+            <h3 style={{ fontSize: u(40), fontWeight: 800, letterSpacing: '-0.03em', marginBottom: u(16) }}>Notifications</h3>
+            {perm === 'default' && (
+              <button onClick={activerAlertes} className="pression flex w-full items-center text-left" style={{ gap: u(18), padding: `${u(22)} ${u(26)}`, marginBottom: u(10), borderRadius: u(30), background: '#f1edff', color: '#4c3c8f' }}>
+                <Bell style={{ width: u(34), height: u(34), flex: 'none' }} />
+                <span className="flex-1" style={{ fontSize: t(20), fontWeight: 600 }}>Être prévenu quand le chrono arrive à zéro</span>
+                <span className="btn-violet text-white" style={{ padding: `${u(12)} ${u(24)}`, borderRadius: u(30), fontSize: t(19), fontWeight: 700 }}>Activer</span>
+              </button>
+            )}
+            {etat.notifs.map((n) => (
+              <div key={n.id} className="flex items-start" style={{ gap: u(18), padding: `${u(20)} 0`, borderBottom: '1px solid #eee8fa' }}>
+                <span className="flex items-center justify-center rounded-full" style={{ width: u(60), height: u(60), background: '#f1edff', flex: 'none' }}><Sparkles color="#7138F5" style={{ width: '50%', height: '50%' }} /></span>
+                <span><span className="block" style={{ fontSize: t(23), fontWeight: 700 }}>{n.titre}</span><span className="block" style={{ fontSize: t(20), color: '#5b4f86' }}>{n.texte}</span></span>
+              </div>
+            ))}
+          </Feuille>
+
+          {fete && <Confettis />}
+          {toast && (
+            <div className="pop fixed left-1/2 z-[70] -translate-x-1/2 text-white" style={{ top: u(40), padding: `${u(18)} ${u(30)}`, borderRadius: u(40), background: '#21143F', fontSize: t(21), fontWeight: 600, boxShadow: '0 10px 30px rgba(33,20,63,.4)' }}>{toast}</div>
+          )}
+        </div>
+      );
+    }
+
+    createRoot(document.getElementById('root')).render(<App />);
+  </script>
+</body>
+</html>

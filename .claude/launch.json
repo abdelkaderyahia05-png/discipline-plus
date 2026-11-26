@@ -1,0 +1,11 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    { "name": "clone-rapide", "runtimeExecutable": "python",
+      "runtimeArgs": ["-m", "http.server", "5176", "--directory", "discipline-plus"],
+      "port": 5176, "autoPort": false },
+    { "name": "discipline-plus-pwa", "runtimeExecutable": "python",
+      "runtimeArgs": ["-m", "http.server", "5177", "--directory", "discipline-plus"],
+      "port": 5177, "autoPort": false }
+  ]
+}
