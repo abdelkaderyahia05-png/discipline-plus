@@ -1,0 +1,5 @@
+project_id = "wyvjnpqwgakkkptaeuyq"
+
+# Le jeton de l'utilisateur est vérifié dans la fonction elle-même (auth.getUser).
+[functions.verifier-photo]
+verify_jwt = false
