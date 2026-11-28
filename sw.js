@@ -1,6 +1,6 @@
 /* Service worker de Discipline+ : fonctionnement hors ligne + notifications.
    Change VERSION à chaque mise en ligne pour vider l'ancien cache. */
-const VERSION = 'discipline-plus-v3';
+const VERSION = 'discipline-plus-v4';
 
 // La « coquille » : tout ce qui vient du dossier de l'appli, mis en cache dès l'installation.
 const COQUILLE = [
@@ -44,6 +44,8 @@ self.addEventListener('message', (e) => {
 self.addEventListener('fetch', (e) => {
   const req = e.request;
   if (req.method !== 'GET' || !/^https?:/.test(req.url)) return;
+  // Compte et sauvegarde en ligne (Supabase) : toujours le réseau, jamais le cache.
+  if (new URL(req.url).hostname.endsWith('.supabase.co')) return;
 
   // La page elle-même : réseau d'abord (pour recevoir les mises à jour), cache si hors ligne.
   if (req.mode === 'navigate') {
@@ -80,4 +82,3 @@ self.addEventListener('notificationclick', (e) => {
   })());
 });
 
-// Publication automatique via .github/workflows/pages.yml
