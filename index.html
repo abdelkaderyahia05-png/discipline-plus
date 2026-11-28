@@ -128,6 +128,41 @@
     const lireSync = () => { try { return JSON.parse(localStorage.getItem(CLE_SYNC)) || {}; } catch (e) { return {}; } };
     const ecrireSync = (s) => { try { localStorage.setItem(CLE_SYNC, JSON.stringify(s)); } catch (e) {} };
 
+    /* ---------- vérification de la photo par l'IA (fonction Supabase « verifier-photo ») ---------- */
+    // Réduit la photo (1280 px max, JPEG) avant l'envoi : plus rapide et plus léger.
+    const reduirePhoto = (src) => new Promise((ok) => {
+      const img = new Image();
+      img.onload = () => {
+        const k = Math.min(1, 1280 / Math.max(img.width, img.height));
+        const c = document.createElement('canvas');
+        c.width = Math.round(img.width * k); c.height = Math.round(img.height * k);
+        c.getContext('2d').drawImage(img, 0, 0, c.width, c.height);
+        try { ok(c.toDataURL('image/jpeg', 0.8)); } catch (e) { ok(src); }
+      };
+      img.onerror = () => ok(src);
+      img.src = src;
+    });
+    // Renvoie { valide, raison } si l'IA a jugé, ou { secours: message } s'il faut revenir à la checklist.
+    async function verifierPhoto(session, mission, photo) {
+      if (!navigator.onLine) return { secours: 'Pas de réseau : vérification par l’IA impossible, ta checklist fait foi.' };
+      const ctrl = new AbortController();
+      const minuteur = setTimeout(() => ctrl.abort(), 30000);
+      try {
+        const image = await reduirePhoto(photo);
+        const r = await fetch(`${SUPABASE_URL}/functions/v1/verifier-photo`, {
+          method: 'POST', signal: ctrl.signal,
+          headers: { 'Content-Type': 'application/json', apikey: SUPABASE_CLE, Authorization: `Bearer ${session.access_token}` },
+          body: JSON.stringify({ image, titre: mission.titre, desc: mission.desc, checklist: mission.checklist }),
+        });
+        const d = await r.json().catch(() => ({}));
+        if (r.ok && typeof d.valide === 'boolean') return { valide: d.valide, raison: d.raison || '' };
+        if (r.status === 429) return { secours: `Tu as atteint tes ${d.limite || ''} vérifications par l’IA pour aujourd’hui : ta checklist fait foi.`.replace('  ', ' ') };
+        return { secours: 'L’IA est indisponible pour le moment : ta checklist fait foi.' };
+      } catch (e) {
+        return { secours: 'L’IA ne répond pas (réseau ou serveur) : ta checklist fait foi.' };
+      } finally { clearTimeout(minuteur); }
+    }
+
     /* ---------- unités : 1 = 1 px de la maquette (852 px de large) ---------- */
     const u = (n) => `calc(var(--u) * ${n})`;
     const t = (n, min = 9) => `max(calc(var(--u) * ${n}), ${min}px)`; // texte avec taille mini lisible
@@ -1056,6 +1091,8 @@
       const [etape, setEtape] = useState(1);
       const [fete, setFete] = useState(false);
       const [toast, setToast] = useState(null);
+      // verdict de l'IA sur la photo : null | { etat: 'encours' | 'refus' | 'secours', texte }
+      const [verif, setVerif] = useState(null);
       const fichier = useRef(null);
       const compte = useCompte(etat, setEtat);
       // arrivé par le lien « mot de passe oublié » : on ouvre les Paramètres pour choisir le nouveau
@@ -1115,12 +1152,26 @@
 
       const ouvrir = (cle) => {
         if (cle && cle.onglet) { setOnglet(cle.onglet); window.scrollTo({ top: 0, behavior: 'smooth' }); return; }
-        if (cle === 'valider') { setPhoto(null); setCoches([]); setEtape(1); }
+        if (cle === 'valider') { setPhoto(null); setCoches([]); setEtape(1); setVerif(null); }
         if (cle === 'notifs') maj({ notifs: etat.notifs.map((n) => ({ ...n, lu: true })) });
         setPanneau(cle);
       };
 
-      const valider = () => {
+      // Mission avec photo + compte connecté : l'IA juge d'abord. Refus = ni XP ni déblocage.
+      // Réseau ou IA indisponible : on retombe sur la checklist, en le disant.
+      const demanderValidation = async () => {
+        if (!(m.photo && photo && compte.session)) { valider(); return; }
+        if (verif && verif.etat === 'encours') return;
+        setVerif({ etat: 'encours', texte: 'Je regarde ta photo… ne bouge pas. 🧐' });
+        const r = await verifierPhoto(compte.session, m, photo);
+        if (r.secours) { setVerif({ etat: 'secours', texte: r.secours }); valider(r.secours); return; }
+        if (!r.valide) { setVerif({ etat: 'refus', texte: r.raison || 'Refusé. Recommence.' }); return; }
+        setVerif({ etat: 'ok', texte: r.raison }); valider();
+      };
+
+      const valider = (avertissement) => {
+        if (typeof avertissement !== 'string') avertissement = null;
+        if (avertissement) setToast('Validée avec ta checklist (IA indisponible)');
         let xp = etat.xp + XP_PAR_MISSION, niveau = etat.niveau, monte = false;
         while (xp >= XP_NIVEAU) { xp -= XP_NIVEAU; niveau += 1; monte = true; }
         setEtat((e) => ({ ...e, xp, niveau, serie: e.serie + 1, terminees: e.terminees + 1, missionFaite: true, pause: null,
@@ -1162,7 +1213,7 @@
                 {m.photo && (
                   <div style={{ marginTop: u(26) }}>
                     <input ref={fichier} type="file" accept="image/*" capture="environment" className="hidden"
-                      onChange={(e) => { const f = e.target.files && e.target.files[0]; if (!f) return; const r = new FileReader(); r.onload = () => setPhoto(r.result); r.readAsDataURL(f); }} />
+                      onChange={(e) => { const f = e.target.files && e.target.files[0]; if (!f) return; const r = new FileReader(); r.onload = () => { setPhoto(r.result); setVerif(null); }; r.readAsDataURL(f); e.target.value = ''; }} />
                     <button onClick={() => fichier.current && fichier.current.click()} className="pression relative flex w-full flex-col items-center justify-center overflow-hidden"
                       style={{ height: u(360), borderRadius: u(40), border: photo ? 'none' : `${u(4)} dashed #c9b6ff`, background: '#f7f4ff', color: '#5b2fd6' }}>
                       {photo ? <img src={photo} alt="Ta photo" className="absolute inset-0 h-full w-full object-cover" /> : (
@@ -1175,7 +1226,9 @@
                       {photo && <span className="absolute rounded-full bg-white/90" style={{ right: u(20), bottom: u(20), padding: `${u(10)} ${u(20)}`, fontSize: t(18), fontWeight: 700 }}>Changer</span>}
                     </button>
                     <p className="flex items-center" style={{ gap: u(10), fontSize: t(17), color: '#7a6fa3', marginTop: u(12) }}>
-                      <Info style={{ width: u(26), height: u(26), flex: 'none' }} /> La photo reste sur ton appareil : elle n'est ni envoyée ni analysée automatiquement.
+                      <Info style={{ width: u(26), height: u(26), flex: 'none' }} /> {compte.session
+                        ? "En validant, ta photo est envoyée à une IA (Claude, d'Anthropic) qui vérifie la mission, puis oubliée : elle n'est pas conservée."
+                        : "Pas connecté : ta photo reste sur ton appareil et n'est pas vérifiée par l'IA. Connecte-toi dans les Paramètres pour que je la juge."}
                     </p>
                   </div>
                 )}
@@ -1194,9 +1247,18 @@
                     );
                   })}
                 </div>
-                <button disabled={!peutValider} onClick={valider} className="pression btn-violet flex w-full items-center justify-center text-white disabled:opacity-40 disabled:shadow-none"
+                {verif && verif.etat !== 'ok' && (
+                  <div role="status" aria-live="polite" style={{ marginTop: u(8), marginBottom: u(8), padding: `${u(18)} ${u(22)}`, borderRadius: u(28), fontSize: t(20), fontWeight: 600,
+                    background: verif.etat === 'refus' ? '#fff0f0' : verif.etat === 'secours' ? '#fff7e6' : '#f1edff',
+                    color: verif.etat === 'refus' ? '#b42318' : verif.etat === 'secours' ? '#8a5a00' : '#5b2fd6',
+                    border: `${u(2)} solid ${verif.etat === 'refus' ? '#f5c2c0' : verif.etat === 'secours' ? '#f3d9a4' : '#d8ccf6'}` }}>
+                    {verif.etat === 'refus' ? '❌ Refusé : ' : verif.etat === 'secours' ? '⚠️ ' : ''}{verif.texte}
+                    {verif.etat === 'refus' && <div style={{ fontSize: t(17), fontWeight: 500, marginTop: u(6) }}>Corrige, reprends une photo, et reviens me voir.</div>}
+                  </div>
+                )}
+                <button disabled={!peutValider || (verif && verif.etat === 'encours')} onClick={demanderValidation} className="pression btn-violet flex w-full items-center justify-center text-white disabled:opacity-40 disabled:shadow-none"
                   style={{ height: u(100), borderRadius: u(50), fontSize: u(29), fontWeight: 700, marginTop: u(16), gap: u(14) }}>
-                  <Check strokeWidth={3.2} style={{ width: u(38), height: u(38) }} /> Valider ma mission
+                  <Check strokeWidth={3.2} style={{ width: u(38), height: u(38) }} /> {verif && verif.etat === 'encours' ? 'Vérification…' : 'Valider ma mission'}
                 </button>
                 {!peutValider && <p className="text-center" style={{ fontSize: t(18), color: '#7a6fa3', marginTop: u(12) }}>{m.photo && !photo ? 'Ajoute une photo et ' : ''}{coches.length < m.checklist.length ? 'coche toutes les étapes.' : ''}</p>}
               </div>
@@ -1206,7 +1268,8 @@
                   <img src="img/chat.jpg" alt="Le chat Discipline+ satisfait" className="h-full w-full object-cover" style={{ objectPosition: '50% 8%' }} />
                 </div>
                 <h3 style={{ fontSize: u(46), fontWeight: 800, letterSpacing: '-0.03em', marginTop: u(26) }}>Mission accomplie ! 🎉</h3>
-                <p style={{ fontSize: t(23), color: '#5b4f86', marginTop: u(8) }}>Pas mal… je savais que t'en étais capable. 😎</p>
+                <p style={{ fontSize: t(23), color: '#5b4f86', marginTop: u(8) }}>{verif && verif.etat === 'ok' && verif.texte ? verif.texte : "Pas mal… je savais que t'en étais capable. 😎"}</p>
+                {verif && verif.etat === 'secours' && <p role="status" style={{ fontSize: t(18), color: '#8a5a00', background: '#fff7e6', borderRadius: u(24), padding: `${u(12)} ${u(18)}`, marginTop: u(12) }}>⚠️ {verif.texte}</p>}
                 <div className="grid grid-cols-3" style={{ gap: u(16), marginTop: u(28) }}>
                   {[[`+${XP_PAR_MISSION}`, 'XP gagnés'], [`${etat.serie}`, 'jours de série'], ['5', 'applis débloquées']].map(([v, l]) => (
                     <div key={l} style={{ background: '#f1edff', borderRadius: u(30), padding: `${u(20)} ${u(8)}` }}>
@@ -1300,7 +1363,7 @@
                     {!suivie ? 'Cette application n’est pas bloquée (modifiable dans Paramètres).' : bloquee ? 'Bloquée jusqu’à la validation de ta mission du jour.' : 'Débloquée : mission du jour validée. Profite, avec modération ! 😉'}
                   </p>
                   {bloquee && (
-                    <button onClick={() => setPanneau('valider') || (setPhoto(null), setCoches([]), setEtape(1))} className="pression btn-violet flex w-full items-center justify-center text-white" style={{ height: u(100), borderRadius: u(50), fontSize: u(28), fontWeight: 700, marginTop: u(30) }}>
+                    <button onClick={() => setPanneau('valider') || (setPhoto(null), setCoches([]), setEtape(1), setVerif(null))} className="pression btn-violet flex w-full items-center justify-center text-white" style={{ height: u(100), borderRadius: u(50), fontSize: u(28), fontWeight: 700, marginTop: u(30) }}>
                       Valider ma mission pour débloquer
                     </button>
                   )}
