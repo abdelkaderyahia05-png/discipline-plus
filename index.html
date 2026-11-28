@@ -782,34 +782,36 @@
       );
     }
     function CarteCompte({ compte, setToast }) {
-      const [mode, setMode] = useState('connexion'); // connexion | inscription | oubli
+      const [etape, setEtape] = useState('email'); // email | code
       const [email, setEmail] = useState('');
-      const [mdp, setMdp] = useState('');
+      const [code, setCode] = useState('');
       const [attente, setAttente] = useState(false);
       const [message, setMessage] = useState(null); // { texte, erreur }
       const champ = { width: '100%', height: u(92), borderRadius: u(30), padding: `0 ${u(28)}`, background: '#faf9fd', border: `${u(2)} solid #eee8fa`, fontSize: t(22), color: '#17132C', outline: 'none' };
       const icone = (I) => <span className="flex items-center justify-center rounded-full" style={{ width: u(70), height: u(70), background: '#f1edff', flex: 'none' }}><I color="#7138F5" style={{ width: '48%', height: '48%' }} /></span>;
 
+      const demanderCode = async () => {
+        setAttente(true); setMessage(null);
+        const r = await compte.envoyerCode(email.trim());
+        setAttente(false);
+        if (r.erreur) { setMessage({ texte: r.erreur, erreur: true }); return; }
+        setEtape('code'); setCode('');
+        setMessage({ texte: `E-mail envoyé à ${email.trim()} (regarde aussi dans les spams).` });
+      };
       const envoyer = async (e) => {
         e.preventDefault();
         if (attente) return;
+        if (etape === 'email') { await demanderCode(); return; }
         setAttente(true); setMessage(null);
-        const adresse = email.trim();
-        let r;
-        if (compte.recuperation) r = await compte.nouveauMdp(mdp);
-        else if (mode === 'oubli') r = await compte.oubli(adresse);
-        else if (mode === 'inscription') r = await compte.inscription(adresse, mdp);
-        else r = await compte.connexion(adresse, mdp);
+        const r = await compte.verifierCode(email.trim(), code.replace(/\D/g, ''));
         setAttente(false);
         if (r.erreur) { setMessage({ texte: r.erreur, erreur: true }); return; }
-        if (compte.recuperation) { setMdp(''); setToast('Mot de passe changé 🔑'); return; }
-        if (mode === 'oubli') { setMessage({ texte: 'C’est envoyé : ouvre le lien reçu par e-mail pour choisir un nouveau mot de passe.' }); return; }
-        if (mode === 'inscription' && !(r.data && r.data.session)) { setMessage({ texte: 'Presque fini ! Ouvre le lien reçu par e-mail pour confirmer ton compte, puis connecte-toi ici.' }); setMode('connexion'); setMdp(''); return; }
-        setMdp(''); setToast('Connecté ✅ Ta progression est sauvegardée');
+        setEtape('email'); setCode(''); setMessage(null);
+        setToast('Connecté ✅ Ta progression est sauvegardée');
       };
 
       /* --- connecté --- */
-      if (compte.session && !compte.recuperation) {
+      if (compte.session) {
         const s = compte.statut;
         const heure = compte.derniere ? new Date(compte.derniere).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' }) : null;
         const ligne = s === 'synchro' ? 'Synchronisation…'
@@ -848,56 +850,45 @@
         );
       }
 
-      /* --- pas connecté (ou nouveau mot de passe à choisir) --- */
-      const titre = compte.recuperation ? 'Nouveau mot de passe' : mode === 'oubli' ? 'Mot de passe oublié' : 'Sauvegarde ta progression';
-      const texte = compte.recuperation ? 'Choisis ton nouveau mot de passe (6 caractères minimum).'
-        : mode === 'oubli' ? 'Indique ton e-mail : je t’envoie un lien pour en choisir un nouveau.'
-        : 'Crée un compte pour retrouver ta série et ton niveau sur tous tes appareils. Sans compte, tout reste sur cet appareil.';
-      const bouton = compte.recuperation ? 'Enregistrer' : mode === 'oubli' ? 'Envoyer le lien' : mode === 'inscription' ? 'Créer mon compte' : 'Se connecter';
+      /* --- pas connecté : e-mail, puis lien de connexion (ou code) reçu par e-mail, sans mot de passe --- */
       return (
         <>
           <h3 style={{ fontSize: u(26), fontWeight: 700, marginBottom: u(14) }}>Compte</h3>
           <form onSubmit={envoyer} className="verre-blanc" style={{ borderRadius: u(40), padding: u(30) }}>
             <div className="flex items-start" style={{ gap: u(20) }}>
-              {icone(compte.recuperation ? KeyRound : mode === 'oubli' ? Mail : Cloud)}
+              {icone(etape === 'code' ? KeyRound : Cloud)}
               <span>
-                <span className="block" style={{ fontSize: t(24), fontWeight: 700 }}>{titre}</span>
-                <span className="block" style={{ fontSize: t(18), color: '#5b4f86', marginTop: u(4) }}>{texte}</span>
+                <span className="block" style={{ fontSize: t(24), fontWeight: 700 }}>{etape === 'code' ? 'Ouvre ton e-mail' : 'Sauvegarde ta progression'}</span>
+                <span className="block" style={{ fontSize: t(18), color: '#5b4f86', marginTop: u(4) }}>
+                  {etape === 'code' ? 'Appuie sur le lien de l’e-mail, sur cet appareil : tu es connecté directement. S’il contient un code, tape-le ici.'
+                    : 'Connecte-toi avec ton e-mail pour retrouver ta série et ton niveau sur tous tes appareils. Pas de mot de passe : tu reçois un lien par e-mail. Sans compte, tout reste sur cet appareil.'}
+                </span>
               </span>
             </div>
-            {!compte.recuperation && mode !== 'oubli' && (
-              <div className="grid grid-cols-2" style={{ marginTop: u(24), padding: u(6), borderRadius: u(36), background: '#f1edff' }}>
-                {[['connexion', 'Connexion'], ['inscription', 'Inscription']].map(([id, nom]) => (
-                  <button key={id} type="button" onClick={() => { setMode(id); setMessage(null); }} aria-pressed={mode === id} className="pression"
-                    style={{ height: u(70), borderRadius: u(32), fontSize: t(20), fontWeight: 700, color: mode === id ? '#fff' : '#5b2fd6',
-                      background: mode === id ? 'linear-gradient(90deg,#9747FF,#7138F5)' : 'transparent', boxShadow: mode === id ? `0 ${u(6)} ${u(16)} rgba(113,56,245,.35)` : 'none' }}>{nom}</button>
-                ))}
-              </div>
-            )}
-            <div className="flex flex-col" style={{ gap: u(16), marginTop: u(22) }}>
-              {!compte.recuperation && (
-                <input type="email" required autoComplete="email" inputMode="email" placeholder="Ton e-mail" aria-label="E-mail"
+            <div className="flex flex-col" style={{ gap: u(16), marginTop: u(24) }}>
+              {etape === 'email' ? (
+                <input key="email" type="email" required autoComplete="email" inputMode="email" placeholder="Ton e-mail" aria-label="E-mail"
                   value={email} onChange={(e) => setEmail(e.target.value)} style={champ} />
+              ) : (
+                <input key="code" type="text" required inputMode="numeric" autoComplete="one-time-code" pattern="[0-9 ]{6,10}" maxLength={10} placeholder="Code (facultatif)" aria-label="Code reçu par e-mail"
+                  value={code} onChange={(e) => setCode(e.target.value)} autoFocus
+                  style={{ ...champ, textAlign: 'center', fontSize: t(34, 18), fontWeight: 800, letterSpacing: code ? '0.3em' : 'normal' }} />
               )}
-              {mode !== 'oubli' || compte.recuperation ? (
-                <input type="password" required minLength={6} placeholder={compte.recuperation || mode === 'inscription' ? 'Mot de passe (6 caractères min.)' : 'Mot de passe'} aria-label="Mot de passe"
-                  autoComplete={compte.recuperation || mode === 'inscription' ? 'new-password' : 'current-password'}
-                  value={mdp} onChange={(e) => setMdp(e.target.value)} style={champ} />
-              ) : null}
             </div>
             {message && (
               <p role={message.erreur ? 'alert' : 'status'} style={{ marginTop: u(16), padding: `${u(16)} ${u(22)}`, borderRadius: u(24), fontSize: t(18), fontWeight: 500,
                 background: message.erreur ? '#fdecef' : '#f1edff', color: message.erreur ? '#b3263f' : '#4c3c8f' }}>{message.texte}</p>
             )}
             <button type="submit" disabled={attente} className="pression btn-violet flex w-full items-center justify-center text-white disabled:opacity-60"
-              style={{ height: u(92), borderRadius: u(46), fontSize: t(23), fontWeight: 700, marginTop: u(22) }}>
-              {attente ? 'Un instant…' : bouton}
+              style={{ height: u(92), borderRadius: u(46), fontSize: t(23), fontWeight: 700, marginTop: u(22), gap: u(12) }}>
+              {etape === 'email' && !attente && <Mail style={{ width: u(32), height: u(32) }} />}
+              {attente ? 'Un instant…' : etape === 'email' ? 'Recevoir mon lien' : 'Valider le code'}
             </button>
-            {!compte.recuperation && (
-              <button type="button" onClick={() => { setMode(mode === 'oubli' ? 'connexion' : 'oubli'); setMessage(null); }} className="pression w-full"
-                style={{ height: u(64), marginTop: u(8), fontSize: t(19), fontWeight: 600, color: '#5b2fd6' }}>
-                {mode === 'oubli' ? '← Retour à la connexion' : 'Mot de passe oublié ?'}
-              </button>
+            {etape === 'code' && (
+              <div className="grid grid-cols-2" style={{ gap: u(12), marginTop: u(8) }}>
+                <button type="button" onClick={() => { setEtape('email'); setMessage(null); }} className="pression" style={{ height: u(64), fontSize: t(19), fontWeight: 600, color: '#5b2fd6' }}>← Changer d’e-mail</button>
+                <button type="button" disabled={attente} onClick={demanderCode} className="pression" style={{ height: u(64), fontSize: t(19), fontWeight: 600, color: '#5b2fd6' }}>Renvoyer l’e-mail</button>
+              </div>
             )}
           </form>
         </>
@@ -970,7 +961,6 @@
       const [session, setSession] = useState(null);
       const [statut, setStatut] = useState('local'); // local | synchro | ok | horsligne | erreur
       const [derniere, setDerniere] = useState(null);
-      const [recuperation, setRecuperation] = useState(false); // arrivé par le lien « mot de passe oublié »
       const uid = session && session.user ? session.user.id : null;
       const etatRef = useRef(etat); etatRef.current = etat;
       const uidRef = useRef(uid); uidRef.current = uid;
@@ -1018,10 +1008,7 @@
       // session : celle gardée sur l'appareil, puis les connexions / déconnexions
       useEffect(() => {
         supabase.auth.getSession().then(({ data }) => setSession(data.session)).catch(() => {});
-        const { data } = supabase.auth.onAuthStateChange((evenement, s) => {
-          setSession(s);
-          if (evenement === 'PASSWORD_RECOVERY') setRecuperation(true);
-        });
+        const { data } = supabase.auth.onAuthStateChange((evenement, s) => setSession(s));
         return () => data.subscription.unsubscribe();
       }, []);
 
@@ -1051,11 +1038,9 @@
 
       const traduire = (e) => {
         const m = String((e && e.message) || e || '');
-        if (/invalid login credentials/i.test(m)) return 'E-mail ou mot de passe incorrect.';
-        if (/email not confirmed/i.test(m)) return "Confirme d'abord ton adresse : clique sur le lien reçu par e-mail.";
-        if (/already registered|already been registered/i.test(m)) return 'Un compte existe déjà avec cet e-mail : connecte-toi.';
-        if (/password/i.test(m) && /(6|characters|short|weak)/i.test(m)) return 'Mot de passe trop court : 6 caractères minimum.';
-        if (/rate limit|too many|security purposes/i.test(m)) return 'Trop d’essais : réessaie dans quelques minutes.';
+        if (/expired|invalid.*(token|otp)|(token|otp).*invalid/i.test(m)) return 'Code faux ou expiré. Vérifie-le, ou demande-en un nouveau.';
+        if (/security purposes|after \d+ seconds/i.test(m)) return 'Attends une minute avant de redemander un code.';
+        if (/rate limit|too many/i.test(m)) return 'Trop de codes demandés : réessaie dans un moment.';
         if (/valid email|invalid.*email|email.*invalid/i.test(m)) return 'Cette adresse e-mail n’est pas valide.';
         if (/fetch|network|failed to/i.test(m) || !navigator.onLine) return 'Pas de réseau : réessaie quand tu seras connecté à Internet.';
         return 'Oups, ça n’a pas marché. Réessaie.';
@@ -1067,12 +1052,10 @@
       };
 
       return {
-        session, email: session && session.user ? session.user.email : null, statut, derniere, recuperation,
+        session, email: session && session.user ? session.user.email : null, statut, derniere,
         synchroniser,
-        connexion: (email, mdp) => agir(supabase.auth.signInWithPassword({ email, password: mdp })),
-        inscription: (email, mdp) => agir(supabase.auth.signUp({ email, password: mdp, options: { emailRedirectTo: adresseRetour() } })),
-        oubli: (email) => agir(supabase.auth.resetPasswordForEmail(email, { redirectTo: adresseRetour() })),
-        nouveauMdp: async (mdp) => { const r = await agir(supabase.auth.updateUser({ password: mdp })); if (!r.erreur) setRecuperation(false); return r; },
+        envoyerCode: (email) => agir(supabase.auth.signInWithOtp({ email, options: { shouldCreateUser: true, emailRedirectTo: adresseRetour() } })),
+        verifierCode: (email, code) => agir(supabase.auth.verifyOtp({ email, token: code, type: 'email' })),
         deconnexion: async () => {
           try { await supabase.auth.signOut({ scope: 'local' }); } catch (e) {}
           ecrireSync({ majLocale: lireSync().majLocale }); // la progression reste sur l'appareil, mais n'est plus liée au compte
@@ -1095,8 +1078,6 @@
       const [verif, setVerif] = useState(null);
       const fichier = useRef(null);
       const compte = useCompte(etat, setEtat);
-      // arrivé par le lien « mot de passe oublié » : on ouvre les Paramètres pour choisir le nouveau
-      useEffect(() => { if (compte.recuperation) setOnglet('parametres'); }, [compte.recuperation]);
 
       useEffect(() => { try { localStorage.setItem(CLE, JSON.stringify(etat)); } catch (e) {} }, [etat]);
       // démarre le chronomètre de la mission du jour au premier lancement
