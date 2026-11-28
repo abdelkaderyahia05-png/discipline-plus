@@ -399,51 +399,76 @@
         .catch((e) => { blobIntro = null; throw e; }));
     }
     const mouvementReduit = () => { try { return matchMedia('(prefers-reduced-motion: reduce)').matches; } catch (e) { return false; } };
-    let introDejaVue = false; // l'intro passe une fois par ouverture de l'appli (pas à chaque changement d'onglet)
+    const PAUSE_ENTRE_INTROS = 3500; // le chat attend bras croisés, puis recommence son entrée
 
-    function ChatAnime({ intro = false, alt, style, imageStyle, onPhase, boutonSon }) {
+    /* boucle = true : l'intro se rejoue (entrée, toc toc, bras croisés, pause) tant que la mission n'est pas faite.
+       boucle = false : le chat reste dans sa pose bras croisés et respire doucement. */
+    function ChatAnime({ boucle = false, alt, style, imageStyle, onPhase, boutonSon }) {
       const ref = useRef(null);
       const reduit = useMemo(mouvementReduit, []);
-      const [phase, setPhase] = useState(() => (intro && !reduit ? 'chargement' : 'pose'));
-      const [src, setSrc] = useState(null);
-      const son = useRef(false);
+      const anime = boucle && !reduit;
+      const [src, setSrc] = useState(urlIntro);
+      const [phase, setPhase] = useState(anime ? 'intro' : 'pose'); // intro | pose | attente (lecture auto bloquée)
+      const son = useRef(false), minuteur = useRef(null), geste = useRef(null);
+      const animeRef = useRef(anime); animeRef.current = anime;
 
-      useEffect(() => { if (phase !== 'pose') introDejaVue = true; onPhase && onPhase(phase); }, [phase]);
+      useEffect(() => { onPhase && onPhase(phase); }, [phase]);
       useEffect(() => {
-        if (reduit) return;
+        if (!anime) return;
         let actif = true;
-        chargerIntro().then((url) => { if (!actif) return; setSrc(url); if (phase === 'chargement') setPhase('intro'); })
-          .catch(() => { if (actif) setPhase('pose'); });
-        // Réseau trop lent : on n'attend pas plus de 6 s, le chat apparaît dans sa pose.
-        const t = setTimeout(() => { if (actif) setPhase((ph) => (ph === 'chargement' ? 'pose' : ph)); }, 6000);
-        return () => { actif = false; clearTimeout(t); };
-      }, []);
+        chargerIntro().then((url) => { if (actif) setSrc(url); }).catch(() => { if (actif) setPhase('pose'); });
+        return () => { actif = false; };
+      }, [anime]);
+      // Mission faite : on arrête tout, le chat garde sa pose.
       useEffect(() => {
-        const v = ref.current; if (!v || phase !== 'intro') return;
-        v.muted = !son.current;
-        const p = v.play();
-        // Son refusé par le navigateur (pas de geste de l'utilisateur) : on relance sans le son.
-        if (p) p.catch((e) => { if (e && e.name === 'AbortError') return; if (!v.muted) { v.muted = true; son.current = false; v.play().catch(() => {}); } else setPhase('pose'); });
-      }, [phase, src]);
+        if (anime) { setPhase((ph) => (ph === 'pose' && !minuteur.current ? 'intro' : ph)); return; }
+        clearTimeout(minuteur.current); minuteur.current = null;
+        const v = ref.current; if (v) v.pause();
+        setPhase('pose');
+      }, [anime]);
+      useEffect(() => () => { clearTimeout(minuteur.current); if (geste.current) geste.current(); }, []);
 
-      const rejouerAvecSon = () => {
-        if (!urlIntro) return;
-        son.current = true;
-        const v = ref.current;
-        if (v) { v.currentTime = 0; v.muted = false; v.play().catch(() => { v.muted = true; son.current = false; v.play().catch(() => {}); }); }
-        setSrc(urlIntro); setPhase('intro');
+      // Certains téléphones (mode économie d'énergie…) refusent la lecture automatique :
+      // on montre la pose et on lance l'intro au premier toucher de l'écran.
+      const attendreGeste = () => {
+        setPhase('attente');
+        if (geste.current) return;
+        const go = () => { nettoyer(); if (animeRef.current) { setPhase('intro'); lancer(); } };
+        const nettoyer = () => { ['pointerdown', 'touchstart', 'keydown'].forEach((t) => document.removeEventListener(t, go, true)); geste.current = null; };
+        ['pointerdown', 'touchstart', 'keydown'].forEach((t) => document.addEventListener(t, go, true));
+        geste.current = nettoyer;
       };
+      function lancer() {
+        const v = ref.current; if (!v) return;
+        clearTimeout(minuteur.current); minuteur.current = null;
+        v.muted = !son.current;
+        try { v.currentTime = 0; } catch (e) {}
+        const p = v.play();
+        if (p) p.catch((e) => {
+          if (e && e.name === 'AbortError') return;
+          if (!v.muted) { v.muted = true; son.current = false; v.play().catch(attendreGeste); } // son refusé : on relance sans le son
+          else attendreGeste();
+        });
+      }
+      useEffect(() => { if (phase === 'intro' && src && ref.current && ref.current.paused) lancer(); }, [phase, src]);
 
-      const enVideo = phase === 'intro' && src && !reduit;
+      const fini = () => {
+        son.current = false;
+        setPhase('pose');
+        if (animeRef.current) minuteur.current = setTimeout(() => { minuteur.current = null; if (animeRef.current) setPhase('intro'); }, PAUSE_ENTRE_INTROS);
+      };
+      const ecouter = () => { son.current = true; setPhase('intro'); lancer(); };
+
+      const poseVisible = !anime || phase !== 'intro';
       return (
         <>
-          <div style={{ ...style, overflow: 'hidden' }}>
-            {enVideo && <video ref={ref} src={src} muted playsInline autoPlay onEnded={() => { son.current = false; setPhase('pose'); }}
-              aria-label={alt} className="block h-full w-full object-cover" style={imageStyle} />}
-            {phase === 'pose' && <img src={POSE_CHAT} alt={alt} className="chat-respire block h-full w-full object-cover" style={imageStyle} />}
+          <div className="relative" style={{ ...style, overflow: 'hidden' }}>
+            {anime && src && <video ref={ref} src={src} muted playsInline preload="auto" onEnded={fini}
+              aria-label={alt} className="absolute inset-0 block h-full w-full object-cover" style={imageStyle} />}
+            {poseVisible && <img src={POSE_CHAT} alt={alt} className="chat-respire absolute inset-0 block h-full w-full object-cover" style={imageStyle} />}
           </div>
-          {boutonSon && !reduit && (
-            <button onClick={rejouerAvecSon} aria-label="Revoir le chat avec le son" className="pression absolute flex items-center justify-center rounded-full"
+          {boutonSon && anime && (
+            <button onClick={ecouter} aria-label="Revoir le chat avec le son" className="pression absolute flex items-center justify-center rounded-full"
               style={{ ...boutonSon, width: u(76), height: u(76), background: 'rgba(255,255,255,.8)', backdropFilter: 'blur(10px)', border: '1px solid rgba(255,255,255,.95)', boxShadow: `0 ${u(8)} ${u(22)} rgba(60,30,140,.22)` }}>
               <Volume2 color="#5d3fd3" style={{ width: '48%', height: '48%' }} />
             </button>
@@ -499,7 +524,7 @@
       const [phaseChat, setPhaseChat] = useState(null);
       const bulle = etat.missionFaite ? <>Bien joué ! 😎<br />Tes applis sont<br />débloquées.</>
         : expire ? <>Temps écoulé ! ⏰<br />Termine quand<br />même ta mission.</>
-        : phaseChat === 'intro' || phaseChat === 'chargement' ? <>Toc toc ! ✊<br />Viens faire ta<br />mission du jour !</>
+        : phaseChat === 'intro' ? <>Toc toc ! ✊<br />Viens faire ta<br />mission du jour !</>
         : <>Salam ! 👋<br />Prêt pour ta<br />mission du jour ?</>;
 
       const basculerChrono = () => {
@@ -516,7 +541,7 @@
         <div className="vue relative" style={{ paddingBottom: u(150) }}>
           {/* décor + personnage */}
           <div className="absolute left-0 top-0 w-full overflow-hidden" style={{ height: u(1000), background: '#cfc8e4', WebkitMaskImage: 'linear-gradient(180deg,#000 90%,transparent)', maskImage: 'linear-gradient(180deg,#000 90%,transparent)' }}>
-            <ChatAnime intro={!introDejaVue}
+            <ChatAnime boucle={!etat.missionFaite}
               alt="Le chat Discipline+ te regarde, les bras croisés" onPhase={setPhaseChat} boutonSon={{ left: u(44), top: u(470) }}
               style={{ position: 'absolute', left: u(40), top: u(28), width: u(495), height: u(880) }}
               imageStyle={{ WebkitMaskImage: 'linear-gradient(90deg,transparent,#000 9%,#000 91%,transparent)', maskImage: 'linear-gradient(90deg,transparent,#000 9%,#000 91%,transparent)' }} />
