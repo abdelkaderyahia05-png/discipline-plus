@@ -1,0 +1,48 @@
+# Publie le dossier discipline-plus/ sur la branche gh-pages
+# (servie par GitHub Pages) a chaque push sur main qui le modifie.
+name: Publier sur GitHub Pages
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'discipline-plus/**'
+      - '.github/workflows/pages.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  publier:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+
+      - name: Copier discipline-plus/ sur gh-pages
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+          arbre=$(git rev-parse "HEAD:discipline-plus")
+
+          if git fetch --depth=1 origin gh-pages; then
+            parent=$(git rev-parse FETCH_HEAD)
+            if [ "$(git rev-parse "$parent^{tree}")" = "$arbre" ]; then
+              echo "gh-pages est deja a jour."
+              exit 0
+            fi
+            commit=$(git commit-tree "$arbre" -p "$parent" -m "Publie discipline-plus depuis ${GITHUB_SHA::7}")
+          else
+            commit=$(git commit-tree "$arbre" -m "Publie discipline-plus depuis ${GITHUB_SHA::7}")
+          fi
+
+          git push origin "$commit:refs/heads/gh-pages"
+          echo "gh-pages -> $commit"
