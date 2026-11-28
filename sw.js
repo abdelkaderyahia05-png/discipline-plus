@@ -79,3 +79,5 @@ self.addEventListener('notificationclick', (e) => {
     return self.clients.openWindow('./');
   })());
 });
+
+// Publication automatique via .github/workflows/pages.yml
