@@ -1,0 +1,58 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+
+    <!-- Charger l'appli web Discipline+ (GitHub Pages). -->
+    <uses-permission android:name="android.permission.INTERNET" />
+
+    <application
+        android:allowBackup="false"
+        android:icon="@mipmap/ic_launcher"
+        android:label="@string/app_name"
+        android:supportsRtl="true"
+        android:theme="@style/Theme.Discipline">
+
+        <!-- Écran principal : l'appli web dans une WebView. -->
+        <activity
+            android:name=".MainActivity"
+            android:configChanges="orientation|screenSize|keyboardHidden|uiMode"
+            android:exported="true"
+            android:launchMode="singleTask"
+            android:screenOrientation="portrait">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity>
+
+        <!-- Écran d'installation : explique l'autorisation demandée. -->
+        <activity
+            android:name=".AccueilActivity"
+            android:exported="false"
+            android:screenOrientation="portrait" />
+
+        <!-- Écran violet affiché par-dessus une appli bloquée. -->
+        <activity
+            android:name=".BlocageActivity"
+            android:excludeFromRecents="true"
+            android:exported="false"
+            android:launchMode="singleTask"
+            android:noHistory="true"
+            android:screenOrientation="portrait"
+            android:taskAffinity="app.disciplineplus.blocage"
+            android:theme="@style/Theme.Discipline.Blocage" />
+
+        <!-- Détecte l'ouverture d'une appli bloquée. -->
+        <service
+            android:name=".BlocageService"
+            android:exported="true"
+            android:label="@string/service_nom"
+            android:permission="android.permission.BIND_ACCESSIBILITY_SERVICE">
+            <intent-filter>
+                <action android:name="android.accessibilityservice.AccessibilityService" />
+            </intent-filter>
+            <meta-data
+                android:name="android.accessibilityservice"
+                android:resource="@xml/service_blocage" />
+        </service>
+    </application>
+</manifest>

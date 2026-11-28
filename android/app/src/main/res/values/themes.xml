@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <style name="Theme.Discipline" parent="android:Theme.Material.Light.NoActionBar">
+        <item name="android:colorPrimary">@color/violet</item>
+        <item name="android:colorAccent">@color/violet</item>
+        <item name="android:statusBarColor">@color/violet_profond</item>
+        <item name="android:navigationBarColor">@color/violet_profond</item>
+        <item name="android:windowBackground">@color/lavande</item>
+    </style>
+
+    <style name="Theme.Discipline.Blocage">
+        <item name="android:windowBackground">@drawable/fond_blocage</item>
+        <item name="android:statusBarColor">@color/violet_profond</item>
+        <item name="android:navigationBarColor">@color/violet</item>
+        <item name="android:windowAnimationStyle">@null</item>
+    </style>
+</resources>

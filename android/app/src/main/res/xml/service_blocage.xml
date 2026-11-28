@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- On n'écoute que les changements de fenêtre (quelle appli passe au premier plan).
+     canRetrieveWindowContent=false : le contenu de l'écran n'est jamais lu. -->
+<accessibility-service xmlns:android="http://schemas.android.com/apk/res/android"
+    android:accessibilityEventTypes="typeWindowStateChanged"
+    android:accessibilityFeedbackType="feedbackGeneric"
+    android:canRetrieveWindowContent="false"
+    android:description="@string/service_description"
+    android:notificationTimeout="100"
+    android:summary="@string/service_resume" />

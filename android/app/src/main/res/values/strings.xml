@@ -1,0 +1,37 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">Discipline+</string>
+    <string name="service_nom">Discipline+ · Blocage des applis</string>
+    <string name="service_resume">Bloque TikTok, YouTube, Instagram, Snapchat et X tant que la mission du jour n\'est pas validée.</string>
+    <string name="service_description">Discipline+ regarde uniquement le nom de l\'appli qui s\'ouvre au premier plan. Si c\'est une appli que tu as choisi de bloquer et que ta mission du jour n\'est pas validée, il affiche l\'écran « Termine ta mission d\'abord ». Il ne lit jamais le contenu de l\'écran, ne tape rien à ta place et n\'envoie aucune donnée.</string>
+
+    <string name="accueil_titre">Active le vrai blocage</string>
+    <string name="accueil_intro">Pour bloquer réellement TikTok, YouTube, Instagram, Snapchat et X tant que ta mission n\'est pas validée, Discipline+ a besoin d\'une seule autorisation spéciale. Voici ce qui est demandé et pourquoi.</string>
+
+    <string name="perm1_titre">1 · Accessibilité (à activer toi-même)</string>
+    <string name="perm1_texte">Pourquoi : c\'est le seul moyen pour Android de prévenir Discipline+ qu\'une appli vient de s\'ouvrir.\n\nCe que l\'appli voit : seulement le nom de l\'appli au premier plan.\n\nCe qu\'elle ne fait pas : lire tes messages ou ton écran, appuyer à ta place, envoyer quoi que ce soit sur Internet.</string>
+    <string name="perm1_bouton">Ouvrir les réglages d\'accessibilité</string>
+    <string name="perm1_aide">Dans la liste, touche « Discipline+ · Blocage des applis » puis active l\'interrupteur.</string>
+    <string name="perm1_ok">✅ Blocage activé</string>
+    <string name="perm1_ko">⛔ Blocage pas encore activé</string>
+
+    <string name="restreint_titre">Si Android affiche « Paramètre restreint »</string>
+    <string name="restreint_texte">Normal pour une appli installée hors Play Store (Android 13 et plus). Ouvre la fiche de l\'appli, touche les trois points ⋮ en haut à droite, puis « Autoriser les paramètres restreints ». Reviens ensuite activer l\'accessibilité.</string>
+    <string name="restreint_bouton">Ouvrir la fiche de l\'appli</string>
+
+    <string name="perm2_titre">2 · Internet (automatique)</string>
+    <string name="perm2_texte">Pourquoi : charger l\'appli Discipline+ (tes missions, ton chat). Rien à accepter. Ta progression reste sur ton téléphone.</string>
+
+    <string name="accueil_continuer">Continuer vers ma mission</string>
+    <string name="accueil_plus_tard">Plus tard (sans blocage réel)</string>
+
+    <string name="blocage_titre">Termine ta mission d\'abord</string>
+    <string name="blocage_texte">%1$s reste bloqué tant que ta mission du jour n\'est pas validée.</string>
+    <string name="blocage_texte_jour">Nouvelle journée : %1$s reste bloqué tant que tu n\'as pas validé la mission d\'aujourd\'hui.</string>
+    <string name="blocage_bouton">Aller à ma mission</string>
+    <string name="blocage_quitter">Revenir à l\'écran d\'accueil</string>
+    <string name="app_generique">Cette appli</string>
+
+    <string name="hors_ligne">Pas de connexion. Vérifie ton Internet puis réessaie.</string>
+    <string name="reessayer">Réessayer</string>
+</resources>

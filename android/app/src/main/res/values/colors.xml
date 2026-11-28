@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <color name="violet">#7138F5</color>
+    <color name="violet_lumineux">#9747FF</color>
+    <color name="violet_profond">#21143F</color>
+    <color name="lavande">#F1EDFF</color>
+    <color name="blanc">#FFFFFF</color>
+    <color name="blanc_doux">#D9FFFFFF</color>
+    <color name="texte">#2B1F55</color>
+</resources>
