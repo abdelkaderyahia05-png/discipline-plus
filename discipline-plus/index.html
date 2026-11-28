@@ -124,7 +124,7 @@
   <script type="text/babel" data-type="module" data-presets="react">
     import React, { useState, useEffect, useRef, useMemo } from 'react';
     import { createRoot } from 'react-dom/client';
-    import { Check, ChevronRight, ChevronDown, Lock, LockOpen, Clock, X, Camera, Home, Trophy, Settings, Bell, RotateCcw, Pause, Play, Info, Flame, Target, Sparkles, Download, Cloud, CloudOff, LogOut, Mail, KeyRound, Volume2 } from 'lucide-react';
+    import { Check, ChevronRight, ChevronDown, Lock, LockOpen, Clock, X, Camera, Home, Trophy, Settings, Bell, RotateCcw, Pause, Play, Info, Flame, Target, Sparkles, Download, Cloud, CloudOff, LogOut, Mail, KeyRound, Volume2, Trash2 } from 'lucide-react';
     import { createClient } from '@supabase/supabase-js';
 
     /* ---------- compte en ligne (Supabase) : clé publique, protégée par les règles RLS de la table ---------- */
@@ -1082,12 +1082,12 @@
     }
 
     /* ================= PARAMÈTRES ================= */
-    function Parametres({ etat, maj, reinitialiser, perm, activerAlertes, installable, installer, compte, setToast }) {
+    function Parametres({ etat, maj, reinitialiser, perm, activerAlertes, installable, installer, compte, setToast, apresSuppression }) {
       const [confirmer, setConfirmer] = useState(false);
       const basculer = (id) => maj({ appsBloquees: etat.appsBloquees.includes(id) ? etat.appsBloquees.filter((x) => x !== id) : [...etat.appsBloquees, id] });
       return (
         <EcranSimple titre="Paramètres" sousTitre="Règle Discipline+ à ta façon.">
-          <CarteCompte compte={compte} setToast={setToast} />
+          <CarteCompte compte={compte} setToast={setToast} apresSuppression={apresSuppression} />
           <h3 style={{ fontSize: u(26), fontWeight: 700, margin: `${u(34)} 0 ${u(14)}` }}>Applications à bloquer</h3>
           <div className="verre-blanc" style={{ borderRadius: u(40), padding: `${u(6)} ${u(30)}` }}>
             {APPS.map((a, i) => {
@@ -1142,11 +1142,17 @@
               <button onClick={() => { reinitialiser(); setConfirmer(false); }} className="pression text-white" style={{ height: u(92), borderRadius: u(46), background: '#d63a5a', fontSize: t(23), fontWeight: 700 }}>Réinitialiser</button>
             </div>
           </Feuille>
+          <p className="text-center" style={{ marginTop: u(34), fontSize: t(19), color: '#7a6fa3' }}>
+            <a href="confidentialite.html" style={{ color: '#5b2fd6', fontWeight: 600, textDecoration: 'underline' }}>Politique de confidentialité</a>
+            {' · '}
+            <a href="supprimer-compte.html" style={{ color: '#5b2fd6', fontWeight: 600, textDecoration: 'underline' }}>Suppression du compte</a>
+          </p>
         </EcranSimple>
       );
     }
-    function CarteCompte({ compte, setToast }) {
+    function CarteCompte({ compte, setToast, apresSuppression }) {
       const [etape, setEtape] = useState('email'); // email | code
+      const [suppr, setSuppr] = useState(null); // null | { attente, erreur } : feuille de confirmation de suppression du compte
       const [email, setEmail] = useState('');
       const [code, setCode] = useState('');
       const [attente, setAttente] = useState(false);
@@ -1209,7 +1215,31 @@
                   <LogOut style={{ width: u(28), height: u(28) }} /> Se déconnecter
                 </button>
               </div>
+              <button onClick={() => setSuppr({})} className="pression flex w-full items-center justify-center"
+                style={{ marginTop: u(14), height: u(64), fontSize: t(19), fontWeight: 600, color: '#b3263f', gap: u(10) }}>
+                <Trash2 style={{ width: u(26), height: u(26) }} /> Supprimer mon compte
+              </button>
             </div>
+            <Feuille ouverte={!!suppr} onFermer={() => { if (!(suppr && suppr.attente)) setSuppr(null); }}>
+              <h3 style={{ fontSize: u(36), fontWeight: 800 }}>Supprimer ton compte ?</h3>
+              <p style={{ fontSize: t(22), color: '#5b4f86', marginTop: u(14) }}>
+                Ton compte <strong>{compte.email}</strong>, ta progression sauvegardée en ligne et ton historique seront effacés <strong>définitivement</strong>, ainsi que les données de l'appli sur cet appareil. Impossible de revenir en arrière.
+              </p>
+              {suppr && suppr.erreur && (
+                <p role="alert" style={{ marginTop: u(18), padding: `${u(16)} ${u(22)}`, borderRadius: u(24), fontSize: t(19), fontWeight: 500, background: '#fdecef', color: '#b3263f' }}>{suppr.erreur}</p>
+              )}
+              <div className="grid grid-cols-2" style={{ gap: u(20), marginTop: u(34) }}>
+                <button disabled={!!(suppr && suppr.attente)} onClick={() => setSuppr(null)} className="pression disabled:opacity-60" style={{ height: u(92), borderRadius: u(46), background: '#f1edff', fontSize: t(23), fontWeight: 700, color: '#5b2fd6' }}>Annuler</button>
+                <button disabled={!!(suppr && suppr.attente)} onClick={async () => {
+                    setSuppr({ attente: true });
+                    const r = await compte.supprimerCompte();
+                    if (r.erreur) { setSuppr({ erreur: r.erreur }); return; }
+                    setSuppr(null); apresSuppression();
+                  }} className="pression text-white disabled:opacity-60" style={{ height: u(92), borderRadius: u(46), background: '#d63a5a', fontSize: t(23), fontWeight: 700 }}>
+                  {suppr && suppr.attente ? 'Suppression…' : 'Supprimer'}
+                </button>
+              </div>
+            </Feuille>
           </>
         );
       }
@@ -1254,6 +1284,9 @@
                 <button type="button" disabled={attente} onClick={demanderCode} className="pression" style={{ height: u(64), fontSize: t(19), fontWeight: 600, color: '#5b2fd6' }}>Renvoyer l’e-mail</button>
               </div>
             )}
+            <p className="text-center" style={{ marginTop: u(16), fontSize: t(17), color: '#7a6fa3' }}>
+              En te connectant, tu acceptes notre <a href="confidentialite.html" style={{ color: '#5b2fd6', fontWeight: 600, textDecoration: 'underline' }}>politique de confidentialité</a>.
+            </p>
           </form>
         </>
       );
@@ -1425,6 +1458,26 @@
           ecrireSync({ majLocale: lireSync().majLocale }); // la progression reste sur l'appareil, mais n'est plus liée au compte
           setSession(null);
         },
+        // Supprime le compte en ligne (fonction Supabase « supprimer-compte ») puis vide le stockage local de l'appli.
+        supprimerCompte: async () => {
+          if (!navigator.onLine) return { erreur: 'Pas de réseau : connecte-toi à Internet pour supprimer ton compte.' };
+          let s = null;
+          try { s = (await supabase.auth.getSession()).data.session; } catch (e) {}
+          if (!s) return { erreur: 'Session expirée : reconnecte-toi, puis réessaie.' };
+          try {
+            const r = await fetch(`${SUPABASE_URL}/functions/v1/supprimer-compte`, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json', apikey: SUPABASE_CLE, Authorization: `Bearer ${s.access_token}` },
+              body: JSON.stringify({ confirmation: 'SUPPRIMER' }),
+            });
+            const d = await r.json().catch(() => ({}));
+            if (!r.ok || !d.supprime) return { erreur: r.status === 401 ? 'Session expirée : reconnecte-toi, puis réessaie.' : 'Suppression impossible pour le moment. Réessaie plus tard.' };
+          } catch (e) { return { erreur: 'Le serveur ne répond pas. Vérifie ta connexion et réessaie.' }; }
+          try { await supabase.auth.signOut({ scope: 'local' }); } catch (e) {}
+          try { Object.keys(localStorage).filter((k) => k.startsWith('disciplineplus.') || k.startsWith('sb-')).forEach((k) => localStorage.removeItem(k)); } catch (e) {}
+          setSession(null);
+          return { ok: true };
+        },
       };
     }
 
@@ -1552,6 +1605,7 @@
         setPanneau(null); setToast(`Nouvelle mission : ${nm.titre}`);
       };
 
+      const apresSuppression = () => { setEtat({ ...etatInitial(), fin: Date.now() + MISSIONS[0].minutes * 60000 }); setToast('Compte supprimé. Toutes tes données ont été effacées.'); setOnglet('accueil'); window.scrollTo({ top: 0 }); };
       const reinitialiser = () => { setEtat({ ...etatInitial(), fin: Date.now() + MISSIONS[0].minutes * 60000 }); setToast('Progression réinitialisée'); setOnglet('accueil'); };
 
       const peutValider = (!m.photo || photo) && coches.length === m.checklist.length;
@@ -1563,7 +1617,7 @@
           {onglet === 'accueil' && <Accueil etat={etat} maj={maj} ouvrir={ouvrir} proposerAlertes={proposerAlertes} infoSerie={infoSerie} />}
           {onglet === 'stats' && <Stats etat={etat} infoSerie={infoSerie} />}
           {onglet === 'recompenses' && <Recompenses etat={etat} />}
-          {onglet === 'parametres' && <Parametres etat={etat} maj={maj} reinitialiser={reinitialiser} perm={perm} activerAlertes={activerAlertes} installable={installable} installer={installer} compte={compte} setToast={setToast} />}
+          {onglet === 'parametres' && <Parametres etat={etat} maj={maj} reinitialiser={reinitialiser} perm={perm} activerAlertes={activerAlertes} installable={installable} installer={installer} compte={compte} setToast={setToast} apresSuppression={apresSuppression} />}
           <BarreNav onglet={onglet} setOnglet={(o) => { setOnglet(o); window.scrollTo({ top: 0 }); }} />
 
           {/* Validation de la mission */}

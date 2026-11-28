@@ -3,3 +3,7 @@ project_id = "wyvjnpqwgakkkptaeuyq"
 # Le jeton de l'utilisateur est vérifié dans la fonction elle-même (auth.getUser).
 [functions.verifier-photo]
 verify_jwt = false
+
+# Idem : la fonction vérifie elle-même le jeton et ne supprime que le compte de son propriétaire.
+[functions.supprimer-compte]
+verify_jwt = false
