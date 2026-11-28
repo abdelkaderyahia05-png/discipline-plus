@@ -46,7 +46,8 @@
       "react/jsx-runtime": "https://esm.sh/react@18.3.1/jsx-runtime",
       "react-dom": "https://esm.sh/react-dom@18.3.1?deps=react@18.3.1",
       "react-dom/client": "https://esm.sh/react-dom@18.3.1/client?deps=react@18.3.1",
-      "lucide-react": "https://esm.sh/lucide-react@0.460.0?deps=react@18.3.1"
+      "lucide-react": "https://esm.sh/lucide-react@0.460.0?deps=react@18.3.1",
+      "@supabase/supabase-js": "https://esm.sh/@supabase/supabase-js@2.49.4"
     }
   }
   </script>
@@ -113,7 +114,19 @@
   <script type="text/babel" data-type="module" data-presets="react">
     import React, { useState, useEffect, useRef, useMemo } from 'react';
     import { createRoot } from 'react-dom/client';
-    import { Check, ChevronRight, ChevronDown, Lock, LockOpen, Clock, X, Camera, Home, Trophy, Settings, Bell, RotateCcw, Pause, Play, Info, Flame, Target, Sparkles, Download } from 'lucide-react';
+    import { Check, ChevronRight, ChevronDown, Lock, LockOpen, Clock, X, Camera, Home, Trophy, Settings, Bell, RotateCcw, Pause, Play, Info, Flame, Target, Sparkles, Download, Cloud, CloudOff, LogOut, Mail, KeyRound } from 'lucide-react';
+    import { createClient } from '@supabase/supabase-js';
+
+    /* ---------- compte en ligne (Supabase) : clé publique, protégée par les règles RLS de la table ---------- */
+    const SUPABASE_URL = 'https://wyvjnpqwgakkkptaeuyq.supabase.co';
+    const SUPABASE_CLE = 'sb_publishable_369M3HdhSSuqy--AcLTnmw_lugJPb62';
+    const supabase = createClient(SUPABASE_URL, SUPABASE_CLE, { auth: { persistSession: true, autoRefreshToken: true, detectSessionInUrl: true } });
+    const CLE_SYNC = 'disciplineplus.sync'; // { uid, majLocale, envoye } : à qui appartient la copie locale et ce qui reste à envoyer
+    // Ce qui part en ligne : la progression et les applis choisies (pas les notifications ni les préférences de l'appareil).
+    const CHAMPS_SYNC = ['index', 'serie', 'niveau', 'xp', 'terminees', 'fin', 'pause', 'missionFaite', 'historique', 'appsBloquees'];
+    const extraire = (e) => Object.fromEntries(CHAMPS_SYNC.filter((k) => k in e).map((k) => [k, e[k]]));
+    const lireSync = () => { try { return JSON.parse(localStorage.getItem(CLE_SYNC)) || {}; } catch (e) { return {}; } };
+    const ecrireSync = (s) => { try { localStorage.setItem(CLE_SYNC, JSON.stringify(s)); } catch (e) {} };
 
     /* ---------- unités : 1 = 1 px de la maquette (852 px de large) ---------- */
     const u = (n) => `calc(var(--u) * ${n})`;
@@ -670,12 +683,13 @@
     }
 
     /* ================= PARAMÈTRES ================= */
-    function Parametres({ etat, maj, reinitialiser, perm, activerAlertes, installable, installer }) {
+    function Parametres({ etat, maj, reinitialiser, perm, activerAlertes, installable, installer, compte, setToast }) {
       const [confirmer, setConfirmer] = useState(false);
       const basculer = (id) => maj({ appsBloquees: etat.appsBloquees.includes(id) ? etat.appsBloquees.filter((x) => x !== id) : [...etat.appsBloquees, id] });
       return (
         <EcranSimple titre="Paramètres" sousTitre="Règle Discipline+ à ta façon.">
-          <h3 style={{ fontSize: u(26), fontWeight: 700, marginBottom: u(14) }}>Applications à bloquer</h3>
+          <CarteCompte compte={compte} setToast={setToast} />
+          <h3 style={{ fontSize: u(26), fontWeight: 700, margin: `${u(34)} 0 ${u(14)}` }}>Applications à bloquer</h3>
           <div className="verre-blanc" style={{ borderRadius: u(40), padding: `${u(6)} ${u(30)}` }}>
             {APPS.map((a, i) => {
               const on = etat.appsBloquees.includes(a.id);
@@ -730,6 +744,128 @@
             </div>
           </Feuille>
         </EcranSimple>
+      );
+    }
+    function CarteCompte({ compte, setToast }) {
+      const [mode, setMode] = useState('connexion'); // connexion | inscription | oubli
+      const [email, setEmail] = useState('');
+      const [mdp, setMdp] = useState('');
+      const [attente, setAttente] = useState(false);
+      const [message, setMessage] = useState(null); // { texte, erreur }
+      const champ = { width: '100%', height: u(92), borderRadius: u(30), padding: `0 ${u(28)}`, background: '#faf9fd', border: `${u(2)} solid #eee8fa`, fontSize: t(22), color: '#17132C', outline: 'none' };
+      const icone = (I) => <span className="flex items-center justify-center rounded-full" style={{ width: u(70), height: u(70), background: '#f1edff', flex: 'none' }}><I color="#7138F5" style={{ width: '48%', height: '48%' }} /></span>;
+
+      const envoyer = async (e) => {
+        e.preventDefault();
+        if (attente) return;
+        setAttente(true); setMessage(null);
+        const adresse = email.trim();
+        let r;
+        if (compte.recuperation) r = await compte.nouveauMdp(mdp);
+        else if (mode === 'oubli') r = await compte.oubli(adresse);
+        else if (mode === 'inscription') r = await compte.inscription(adresse, mdp);
+        else r = await compte.connexion(adresse, mdp);
+        setAttente(false);
+        if (r.erreur) { setMessage({ texte: r.erreur, erreur: true }); return; }
+        if (compte.recuperation) { setMdp(''); setToast('Mot de passe changé 🔑'); return; }
+        if (mode === 'oubli') { setMessage({ texte: 'C’est envoyé : ouvre le lien reçu par e-mail pour choisir un nouveau mot de passe.' }); return; }
+        if (mode === 'inscription' && !(r.data && r.data.session)) { setMessage({ texte: 'Presque fini ! Ouvre le lien reçu par e-mail pour confirmer ton compte, puis connecte-toi ici.' }); setMode('connexion'); setMdp(''); return; }
+        setMdp(''); setToast('Connecté ✅ Ta progression est sauvegardée');
+      };
+
+      /* --- connecté --- */
+      if (compte.session && !compte.recuperation) {
+        const s = compte.statut;
+        const heure = compte.derniere ? new Date(compte.derniere).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' }) : null;
+        const ligne = s === 'synchro' ? 'Synchronisation…'
+          : s === 'horsligne' ? 'Hors ligne : envoyé au retour du réseau'
+          : s === 'erreur' ? 'Sauvegarde impossible pour l’instant'
+          : heure ? `Sauvegardé à ${heure}` : 'Sauvegarde en ligne active';
+        return (
+          <>
+            <h3 style={{ fontSize: u(26), fontWeight: 700, marginBottom: u(14) }}>Compte</h3>
+            <div className="verre-blanc" style={{ borderRadius: u(40), padding: u(30) }}>
+              <div className="flex items-center" style={{ gap: u(22) }}>
+                <span className="flex items-center justify-center rounded-full text-white" style={{ width: u(80), height: u(80), flex: 'none', background: 'linear-gradient(145deg,#9747FF,#7138F5)', fontSize: u(36), fontWeight: 800 }}>
+                  {(compte.email || '?').charAt(0).toUpperCase()}
+                </span>
+                <span className="min-w-0 flex-1">
+                  <span className="block truncate" style={{ fontSize: t(23), fontWeight: 700 }}>{compte.email}</span>
+                  <span className="flex items-center" style={{ gap: u(8), fontSize: t(18), color: s === 'erreur' ? '#d63a5a' : '#7a6fa3', marginTop: u(4) }}>
+                    {s === 'horsligne' || s === 'erreur' ? <CloudOff style={{ width: u(26), height: u(26), flex: 'none' }} /> : <Cloud style={{ width: u(26), height: u(26), flex: 'none' }} />}
+                    {ligne}
+                  </span>
+                </span>
+              </div>
+              <p style={{ fontSize: t(18), color: '#5b4f86', marginTop: u(20) }}>Série, niveau, XP, mission en cours, historique et applis choisies : tu les retrouves en te connectant sur un autre appareil.</p>
+              <div className="grid grid-cols-2" style={{ gap: u(16), marginTop: u(22) }}>
+                <button onClick={() => compte.synchroniser()} disabled={s === 'synchro'} className="pression flex items-center justify-center disabled:opacity-60"
+                  style={{ height: u(84), borderRadius: u(42), background: '#f1edff', color: '#5b2fd6', fontSize: t(20), fontWeight: 700, gap: u(10) }}>
+                  <RotateCcw style={{ width: u(28), height: u(28) }} /> Synchroniser
+                </button>
+                <button onClick={async () => { await compte.deconnexion(); setToast('Déconnecté : ta progression reste sur cet appareil'); }} className="pression flex items-center justify-center"
+                  style={{ height: u(84), borderRadius: u(42), background: '#faf9fd', border: `${u(2)} solid #eee8fa`, color: '#d63a5a', fontSize: t(20), fontWeight: 700, gap: u(10) }}>
+                  <LogOut style={{ width: u(28), height: u(28) }} /> Se déconnecter
+                </button>
+              </div>
+            </div>
+          </>
+        );
+      }
+
+      /* --- pas connecté (ou nouveau mot de passe à choisir) --- */
+      const titre = compte.recuperation ? 'Nouveau mot de passe' : mode === 'oubli' ? 'Mot de passe oublié' : 'Sauvegarde ta progression';
+      const texte = compte.recuperation ? 'Choisis ton nouveau mot de passe (6 caractères minimum).'
+        : mode === 'oubli' ? 'Indique ton e-mail : je t’envoie un lien pour en choisir un nouveau.'
+        : 'Crée un compte pour retrouver ta série et ton niveau sur tous tes appareils. Sans compte, tout reste sur cet appareil.';
+      const bouton = compte.recuperation ? 'Enregistrer' : mode === 'oubli' ? 'Envoyer le lien' : mode === 'inscription' ? 'Créer mon compte' : 'Se connecter';
+      return (
+        <>
+          <h3 style={{ fontSize: u(26), fontWeight: 700, marginBottom: u(14) }}>Compte</h3>
+          <form onSubmit={envoyer} className="verre-blanc" style={{ borderRadius: u(40), padding: u(30) }}>
+            <div className="flex items-start" style={{ gap: u(20) }}>
+              {icone(compte.recuperation ? KeyRound : mode === 'oubli' ? Mail : Cloud)}
+              <span>
+                <span className="block" style={{ fontSize: t(24), fontWeight: 700 }}>{titre}</span>
+                <span className="block" style={{ fontSize: t(18), color: '#5b4f86', marginTop: u(4) }}>{texte}</span>
+              </span>
+            </div>
+            {!compte.recuperation && mode !== 'oubli' && (
+              <div className="grid grid-cols-2" style={{ marginTop: u(24), padding: u(6), borderRadius: u(36), background: '#f1edff' }}>
+                {[['connexion', 'Connexion'], ['inscription', 'Inscription']].map(([id, nom]) => (
+                  <button key={id} type="button" onClick={() => { setMode(id); setMessage(null); }} aria-pressed={mode === id} className="pression"
+                    style={{ height: u(70), borderRadius: u(32), fontSize: t(20), fontWeight: 700, color: mode === id ? '#fff' : '#5b2fd6',
+                      background: mode === id ? 'linear-gradient(90deg,#9747FF,#7138F5)' : 'transparent', boxShadow: mode === id ? `0 ${u(6)} ${u(16)} rgba(113,56,245,.35)` : 'none' }}>{nom}</button>
+                ))}
+              </div>
+            )}
+            <div className="flex flex-col" style={{ gap: u(16), marginTop: u(22) }}>
+              {!compte.recuperation && (
+                <input type="email" required autoComplete="email" inputMode="email" placeholder="Ton e-mail" aria-label="E-mail"
+                  value={email} onChange={(e) => setEmail(e.target.value)} style={champ} />
+              )}
+              {mode !== 'oubli' || compte.recuperation ? (
+                <input type="password" required minLength={6} placeholder={compte.recuperation || mode === 'inscription' ? 'Mot de passe (6 caractères min.)' : 'Mot de passe'} aria-label="Mot de passe"
+                  autoComplete={compte.recuperation || mode === 'inscription' ? 'new-password' : 'current-password'}
+                  value={mdp} onChange={(e) => setMdp(e.target.value)} style={champ} />
+              ) : null}
+            </div>
+            {message && (
+              <p role={message.erreur ? 'alert' : 'status'} style={{ marginTop: u(16), padding: `${u(16)} ${u(22)}`, borderRadius: u(24), fontSize: t(18), fontWeight: 500,
+                background: message.erreur ? '#fdecef' : '#f1edff', color: message.erreur ? '#b3263f' : '#4c3c8f' }}>{message.texte}</p>
+            )}
+            <button type="submit" disabled={attente} className="pression btn-violet flex w-full items-center justify-center text-white disabled:opacity-60"
+              style={{ height: u(92), borderRadius: u(46), fontSize: t(23), fontWeight: 700, marginTop: u(22) }}>
+              {attente ? 'Un instant…' : bouton}
+            </button>
+            {!compte.recuperation && (
+              <button type="button" onClick={() => { setMode(mode === 'oubli' ? 'connexion' : 'oubli'); setMessage(null); }} className="pression w-full"
+                style={{ height: u(64), marginTop: u(8), fontSize: t(19), fontWeight: 600, color: '#5b2fd6' }}>
+                {mode === 'oubli' ? '← Retour à la connexion' : 'Mot de passe oublié ?'}
+              </button>
+            )}
+          </form>
+        </>
       );
     }
     function Interrupteur({ on, onChange }) {
@@ -791,6 +927,125 @@
       );
     }
 
+    /* ================= COMPTE + SAUVEGARDE EN LIGNE =================
+       localStorage reste la copie de travail (l'appli marche sans compte et hors ligne).
+       Connecté : chaque changement de la progression est envoyé à Supabase ; au lancement, au retour du réseau
+       et quand on revient sur l'appli, on récupère la version en ligne si elle est plus récente. */
+    function useCompte(etat, setEtat) {
+      const [session, setSession] = useState(null);
+      const [statut, setStatut] = useState('local'); // local | synchro | ok | horsligne | erreur
+      const [derniere, setDerniere] = useState(null);
+      const [recuperation, setRecuperation] = useState(false); // arrivé par le lien « mot de passe oublié »
+      const uid = session && session.user ? session.user.id : null;
+      const etatRef = useRef(etat); etatRef.current = etat;
+      const uidRef = useRef(uid); uidRef.current = uid;
+      const signature = useRef(JSON.stringify(extraire(etat)));
+      const occupe = useRef(false), aRefaire = useRef(false), minuteur = useRef(null);
+
+      const synchroniser = async () => {
+        const id = uidRef.current;
+        if (!id) return;
+        if (occupe.current) { aRefaire.current = true; return; }
+        if (!navigator.onLine) { setStatut('horsligne'); return; }
+        occupe.current = true; setStatut('synchro');
+        try {
+          const s = lireSync();
+          const lie = s.uid === id; // la copie locale appartient-elle déjà à ce compte ?
+          const majLocale = lie ? (s.majLocale || 0) : 0;
+          const envoye = lie ? (s.envoye || 0) : 0;
+          const { data, error } = await supabase.from('progression').select('etat, maj_le').eq('user_id', id).maybeSingle();
+          if (error) throw error;
+          const distant = data ? Number(data.maj_le) || 0 : 0;
+          if (data && (!lie || distant > majLocale)) {
+            // la version en ligne gagne (nouvel appareil, ou modifiée ailleurs plus récemment)
+            const recu = extraire(data.etat || {});
+            signature.current = JSON.stringify(extraire({ ...etatRef.current, ...recu }));
+            ecrireSync({ uid: id, majLocale: distant, envoye: distant });
+            setEtat((e) => ({ ...e, ...recu }));
+          } else if (!data || majLocale > envoye || majLocale > distant) {
+            const quand = majLocale || Date.now();
+            const { error: err } = await supabase.from('progression')
+              .upsert({ user_id: id, etat: extraire(etatRef.current), maj_le: quand }, { onConflict: 'user_id' });
+            if (err) throw err;
+            const apres = lireSync();
+            ecrireSync({ ...apres, uid: id, majLocale: Math.max(apres.uid === id ? apres.majLocale || 0 : 0, quand), envoye: quand });
+            if ((apres.majLocale || 0) > quand) aRefaire.current = true; // modifié pendant l'envoi
+          }
+          setStatut('ok'); setDerniere(Date.now());
+        } catch (e) {
+          setStatut(navigator.onLine ? 'erreur' : 'horsligne');
+        } finally {
+          occupe.current = false;
+          if (aRefaire.current) { aRefaire.current = false; setTimeout(synchroniser, 300); }
+        }
+      };
+
+      // session : celle gardée sur l'appareil, puis les connexions / déconnexions
+      useEffect(() => {
+        supabase.auth.getSession().then(({ data }) => setSession(data.session)).catch(() => {});
+        const { data } = supabase.auth.onAuthStateChange((evenement, s) => {
+          setSession(s);
+          if (evenement === 'PASSWORD_RECOVERY') setRecuperation(true);
+        });
+        return () => data.subscription.unsubscribe();
+      }, []);
+
+      // connexion (ou lancement déjà connecté) : première synchronisation
+      useEffect(() => { if (uid) synchroniser(); else setStatut('local'); }, [uid]);
+
+      // chaque changement local de la progression est daté, puis envoyé peu après
+      useEffect(() => {
+        const sig = JSON.stringify(extraire(etat));
+        if (sig === signature.current) return;
+        signature.current = sig;
+        ecrireSync({ ...lireSync(), majLocale: Date.now() });
+        if (!uidRef.current) return;
+        clearTimeout(minuteur.current);
+        minuteur.current = setTimeout(synchroniser, 1200);
+      }, [etat]);
+
+      // retour du réseau, retour sur l'appli : on se remet à jour
+      useEffect(() => {
+        const enLigne = () => synchroniser();
+        const horsLigne = () => { if (uidRef.current) setStatut('horsligne'); };
+        const visible = () => { if (document.visibilityState === 'visible') synchroniser(); };
+        window.addEventListener('online', enLigne); window.addEventListener('offline', horsLigne);
+        document.addEventListener('visibilitychange', visible);
+        return () => { window.removeEventListener('online', enLigne); window.removeEventListener('offline', horsLigne); document.removeEventListener('visibilitychange', visible); };
+      }, []);
+
+      const traduire = (e) => {
+        const m = String((e && e.message) || e || '');
+        if (/invalid login credentials/i.test(m)) return 'E-mail ou mot de passe incorrect.';
+        if (/email not confirmed/i.test(m)) return "Confirme d'abord ton adresse : clique sur le lien reçu par e-mail.";
+        if (/already registered|already been registered/i.test(m)) return 'Un compte existe déjà avec cet e-mail : connecte-toi.';
+        if (/password/i.test(m) && /(6|characters|short|weak)/i.test(m)) return 'Mot de passe trop court : 6 caractères minimum.';
+        if (/rate limit|too many|security purposes/i.test(m)) return 'Trop d’essais : réessaie dans quelques minutes.';
+        if (/valid email|invalid.*email|email.*invalid/i.test(m)) return 'Cette adresse e-mail n’est pas valide.';
+        if (/fetch|network|failed to/i.test(m) || !navigator.onLine) return 'Pas de réseau : réessaie quand tu seras connecté à Internet.';
+        return 'Oups, ça n’a pas marché. Réessaie.';
+      };
+      const adresseRetour = () => window.location.origin + window.location.pathname;
+      const agir = async (promesse) => {
+        try { const { data, error } = await promesse; if (error) return { erreur: traduire(error) }; return { data }; }
+        catch (e) { return { erreur: traduire(e) }; }
+      };
+
+      return {
+        session, email: session && session.user ? session.user.email : null, statut, derniere, recuperation,
+        synchroniser,
+        connexion: (email, mdp) => agir(supabase.auth.signInWithPassword({ email, password: mdp })),
+        inscription: (email, mdp) => agir(supabase.auth.signUp({ email, password: mdp, options: { emailRedirectTo: adresseRetour() } })),
+        oubli: (email) => agir(supabase.auth.resetPasswordForEmail(email, { redirectTo: adresseRetour() })),
+        nouveauMdp: async (mdp) => { const r = await agir(supabase.auth.updateUser({ password: mdp })); if (!r.erreur) setRecuperation(false); return r; },
+        deconnexion: async () => {
+          try { await supabase.auth.signOut({ scope: 'local' }); } catch (e) {}
+          ecrireSync({ majLocale: lireSync().majLocale }); // la progression reste sur l'appareil, mais n'est plus liée au compte
+          setSession(null);
+        },
+      };
+    }
+
     /* ================= APP ================= */
     function App() {
       const [etat, setEtat] = useState(charger);
@@ -802,6 +1057,9 @@
       const [fete, setFete] = useState(false);
       const [toast, setToast] = useState(null);
       const fichier = useRef(null);
+      const compte = useCompte(etat, setEtat);
+      // arrivé par le lien « mot de passe oublié » : on ouvre les Paramètres pour choisir le nouveau
+      useEffect(() => { if (compte.recuperation) setOnglet('parametres'); }, [compte.recuperation]);
 
       useEffect(() => { try { localStorage.setItem(CLE, JSON.stringify(etat)); } catch (e) {} }, [etat]);
       // démarre le chronomètre de la mission du jour au premier lancement
@@ -890,7 +1148,7 @@
           {onglet === 'accueil' && <Accueil etat={etat} maj={maj} ouvrir={ouvrir} proposerAlertes={proposerAlertes} />}
           {onglet === 'stats' && <Stats etat={etat} />}
           {onglet === 'recompenses' && <Recompenses etat={etat} />}
-          {onglet === 'parametres' && <Parametres etat={etat} maj={maj} reinitialiser={reinitialiser} perm={perm} activerAlertes={activerAlertes} installable={installable} installer={installer} />}
+          {onglet === 'parametres' && <Parametres etat={etat} maj={maj} reinitialiser={reinitialiser} perm={perm} activerAlertes={activerAlertes} installable={installable} installer={installer} compte={compte} setToast={setToast} />}
           <BarreNav onglet={onglet} setOnglet={(o) => { setOnglet(o); window.scrollTo({ top: 0 }); }} />
 
           {/* Validation de la mission */}
