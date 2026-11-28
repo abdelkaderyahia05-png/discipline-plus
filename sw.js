@@ -1,12 +1,12 @@
 /* Service worker de Discipline+ : fonctionnement hors ligne + notifications.
    Change VERSION à chaque mise en ligne pour vider l'ancien cache. */
-const VERSION = 'discipline-plus-v8';
+const VERSION = 'discipline-plus-v9';
 
 // La « coquille » : tout ce qui vient du dossier de l'appli, mis en cache dès l'installation.
 const COQUILLE = [
   './', 'index.html', 'manifest.webmanifest',
   'img/hero.jpg', 'img/chat.jpg', 'img/chambre.jpg', 'img/haltere.jpg', 'img/livre.jpg', 'img/eau.jpg', 'img/sol.jpg',
-  'img/chat-intro.mp4', 'img/chat-idle.mp4', 'img/chat-pose.jpg',
+  'img/chat-intro.mp4', 'img/chat-pose.jpg',
   'icons/icon-192.png', 'icons/icon-512.png', 'icons/icon-maskable-512.png', 'icons/apple-touch-icon.png', 'icons/favicon-48.png',
 ];
 
