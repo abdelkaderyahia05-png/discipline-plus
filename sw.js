@@ -1,6 +1,6 @@
 /* Service worker de Discipline+ : fonctionnement hors ligne + notifications.
    Change VERSION à chaque mise en ligne pour vider l'ancien cache. */
-const VERSION = 'discipline-plus-v6';
+const VERSION = 'discipline-plus-v7';
 
 // La « coquille » : tout ce qui vient du dossier de l'appli, mis en cache dès l'installation.
 const COQUILLE = [

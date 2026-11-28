@@ -488,7 +488,7 @@
           </div>
 
           {/* carte Mission du jour */}
-          <section className="verre-sombre relative text-white" style={{ margin: `${u(368)} ${u(26)} 0`, borderRadius: u(52), height: u(416), padding: `${u(20)} ${u(28)} 0 ${u(48)}` }}>
+          <section className="verre-sombre relative text-white" style={{ margin: `${u(368)} ${u(26)} 0`, borderRadius: u(52), minHeight: u(416), padding: `${u(20)} ${u(28)} ${u(24)} ${u(48)}`, display: 'flex', flexDirection: 'column' }}>
             <div className="flex">
               <div className="min-w-0" style={{ width: u(380) }}>
                 <span className="badge-mission inline-flex items-center" style={{ marginTop: u(2), height: u(40), padding: `0 ${u(18)}`, borderRadius: u(20), fontSize: t(21), fontWeight: 700, letterSpacing: '-0.01em', gap: u(10) }}>
@@ -505,7 +505,8 @@
               </button>
             </div>
 
-            <div className="absolute flex items-center" style={{ left: u(48), right: u(30), bottom: u(24) }}>
+            {/* rangée minuteur + bouton : dans le flux (plus en absolu) pour que la description ne passe jamais dessous */}
+            <div className="flex items-center" style={{ marginTop: 'auto', paddingTop: u(12), marginRight: u(2) }}>
               <button onClick={basculerChrono} className="pression flex items-center text-left" aria-label="Démarrer ou mettre en pause le chronomètre">
                 <span className="relative">
                   <Chrono />
