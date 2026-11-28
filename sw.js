@@ -1,10 +1,10 @@
 /* Service worker de Discipline+ : fonctionnement hors ligne + notifications.
    Change VERSION à chaque mise en ligne pour vider l'ancien cache. */
-const VERSION = 'discipline-plus-v12';
+const VERSION = 'discipline-plus-v13';
 
 // La « coquille » : tout ce qui vient du dossier de l'appli, mis en cache dès l'installation.
 const COQUILLE = [
-  './', 'index.html', 'manifest.webmanifest',
+  './', 'index.html', 'manifest.webmanifest', 'confidentialite.html', 'supprimer-compte.html',
   'img/hero.jpg', 'img/chat.jpg', 'img/chambre.jpg', 'img/haltere.jpg', 'img/livre.jpg', 'img/eau.jpg', 'img/sol.jpg',
   'img/chat-intro.mp4', 'img/chat-pose.jpg',
   'video/chat-bravo.webm', 'video/chat-bravo.mp4', 'video/chat-bravo.jpg', 'video/chat-bravo-fixe.jpg',
@@ -55,7 +55,10 @@ self.addEventListener('fetch', (e) => {
       const cache = await caches.open(VERSION);
       try {
         const r = await fetch(req);
-        if (r.ok) cache.put('index.html', r.clone());
+        // Chaque page garde sa propre copie (sinon ouvrir la politique de confidentialité écraserait l'appli hors ligne).
+        const chemin = new URL(req.url).pathname;
+        const cle = chemin.endsWith('/') || chemin.endsWith('/index.html') ? 'index.html' : chemin.slice(chemin.lastIndexOf('/') + 1);
+        if (r.ok && COQUILLE.includes(cle)) cache.put(cle, r.clone());
         return r;
       } catch (_) {
         return (await cache.match(req, { ignoreSearch: true })) || (await cache.match('index.html')) || Response.error();
