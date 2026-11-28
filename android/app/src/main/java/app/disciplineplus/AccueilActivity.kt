@@ -15,6 +15,7 @@ class AccueilActivity : Activity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_accueil)
+        Bords.proteger(this)
 
         findViewById<Button>(R.id.ouvrirAccessibilite).setOnClickListener {
             startActivity(Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS))

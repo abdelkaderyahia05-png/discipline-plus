@@ -48,5 +48,5 @@ paramètres restreints ».
 - L'état vient du `localStorage` de la WebView : il est séparé de celui de l'appli web ouverte
   dans Chrome (la progression ne se partage pas entre les deux).
 - Photo de preuve : ouvre le sélecteur de fichiers / galerie, pas directement l'appareil photo.
-- APK de test signé avec la clé de débogage : non publiable tel quel sur le Play Store.
+- Version Play Store : `bundleRelease` produit un AAB signé par la clé d'envoi (voir PLAY-STORE.md).
 - iPhone : impossible depuis Windows (il faut un Mac, Xcode et l'autorisation Family Controls d'Apple).

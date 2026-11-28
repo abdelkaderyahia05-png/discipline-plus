@@ -12,6 +12,7 @@ class BlocageActivity : Activity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_blocage)
+        Bords.proteger(this)
         afficher(intent)
 
         findViewById<Button>(R.id.aller).setOnClickListener {

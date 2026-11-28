@@ -10,7 +10,7 @@
 
     <string name="perm1_titre">1 · Accessibilité (à activer toi-même)</string>
     <string name="perm1_texte">Pourquoi : c\'est le seul moyen pour Android de prévenir Discipline+ qu\'une appli vient de s\'ouvrir.\n\nCe que l\'appli voit : seulement le nom de l\'appli au premier plan.\n\nCe qu\'elle ne fait pas : lire tes messages ou ton écran, appuyer à ta place, envoyer quoi que ce soit sur Internet.</string>
-    <string name="perm1_bouton">Ouvrir les réglages d\'accessibilité</string>
+    <string name="perm1_bouton">J\'accepte : ouvrir les réglages d\'accessibilité</string>
     <string name="perm1_aide">Dans la liste, touche « Discipline+ · Blocage des applis » puis active l\'interrupteur.</string>
     <string name="perm1_ok">✅ Blocage activé</string>
     <string name="perm1_ko">⛔ Blocage pas encore activé</string>
@@ -20,7 +20,7 @@
     <string name="restreint_bouton">Ouvrir la fiche de l\'appli</string>
 
     <string name="perm2_titre">2 · Internet (automatique)</string>
-    <string name="perm2_texte">Pourquoi : charger l\'appli Discipline+ (tes missions, ton chat). Rien à accepter. Ta progression reste sur ton téléphone.</string>
+    <string name="perm2_texte">Pourquoi : charger l\'appli Discipline+ (tes missions, ton chat) et, si tu crées un compte, sauvegarder ta progression en ligne. Rien à accepter. Détails : Paramètres → Politique de confidentialité.</string>
 
     <string name="accueil_continuer">Continuer vers ma mission</string>
     <string name="accueil_plus_tard">Plus tard (sans blocage réel)</string>

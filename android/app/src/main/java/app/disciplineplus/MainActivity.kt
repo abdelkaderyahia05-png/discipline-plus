@@ -43,6 +43,7 @@ class MainActivity : Activity() {
         super.onCreate(savedInstanceState)
         web = WebView(this)
         setContentView(web)
+        Bords.proteger(this)
 
         web.settings.javaScriptEnabled = true
         web.settings.domStorageEnabled = true // localStorage : c'est là que vit l'état de l'appli web
