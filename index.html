@@ -106,7 +106,16 @@
     .flotte { animation: flotte 4s ease-in-out infinite; }
     @keyframes chat-respire { 0%,100% { transform: scale(1) } 50% { transform: scale(1.012, 1.018) } }
     .chat-respire { animation: chat-respire 3.6s ease-in-out infinite; transform-origin: 50% 92%; }
-    @media (prefers-reduced-motion: reduce) { .feuille, .voile, .pop, .flotte, .vue, .chat-respire { animation: none; } }
+    /* flamme de série : elle danse doucement quand la mission du jour est faite, et bondit quand la série monte */
+    @keyframes flamme-danse { 0%,100% { transform: scale(1) rotate(-3deg) } 50% { transform: scale(1.07, 1.12) rotate(3deg) } }
+    @keyframes flamme-monte { 0% { transform: scale(1) } 25% { transform: scale(1.45) rotate(-10deg) } 55% { transform: scale(.92) rotate(5deg) } 80% { transform: scale(1.1) } 100% { transform: scale(1) } }
+    @keyframes halo-monte { 0% { box-shadow: 0 0 0 0 rgba(255,140,40,.65) } 100% { box-shadow: 0 0 0 calc(var(--u)*26) rgba(255,140,40,0) } }
+    .flamme-vive { display: inline-block; animation: flamme-danse 1.8s ease-in-out infinite; transform-origin: 50% 85%; }
+    .flamme-monte { display: inline-block; animation: flamme-monte .9s cubic-bezier(.2,.9,.25,1) 2; transform-origin: 50% 85%; }
+    .halo-monte { animation: halo-monte 1s ease-out 2; }
+    @keyframes badge-brille { 0%,100% { filter: drop-shadow(0 0 0 rgba(255,211,107,0)) } 50% { filter: drop-shadow(0 0 calc(var(--u)*10) rgba(255,211,107,.9)) } }
+    .badge-brille { animation: badge-brille 2.6s ease-in-out infinite; }
+    @media (prefers-reduced-motion: reduce) { .feuille, .voile, .pop, .flotte, .vue, .chat-respire, .flamme-vive, .flamme-monte, .halo-monte, .badge-brille { animation: none; } }
   </style>
 </head>
 <body class="font-sans antialiased">
@@ -245,13 +254,13 @@
     const CLE = 'disciplineplus.v1';
 
     const etatInitial = () => ({
-      index: 0, serie: 12, niveau: 3, xp: 120, terminees: 0,
+      index: 0, serie: 0, niveau: 3, xp: 120, terminees: 0, palierVu: 0,
       fin: null, pause: null, missionFaite: false,
       historique: [], appsBloquees: APPS.map((a) => a.id), sons: true,
       alertes: true, alerteFin: null, // notification de fin de chrono ; alerteFin = échéance déjà signalée
       notifs: [
         { id: 1, titre: 'Nouvelle mission', texte: 'Range ta chambre ! Tu as 30 minutes.', lu: false },
-        { id: 2, titre: 'Série de 12 jours 🔥', texte: 'Continue comme ça, tu es sur une belle lancée.', lu: false },
+        { id: 2, titre: 'Allume ta flamme 🔥', texte: 'Valide une mission chaque jour : ta série grandit, et le chat avec.', lu: false },
       ],
     });
     function charger() {
@@ -362,6 +371,46 @@
 
     /* ---------- utilitaires ---------- */
     const fmt = (s) => { s = Math.max(0, Math.ceil(s)); const m = Math.floor(s / 60); return `${String(m).padStart(2, '0')}:${String(s % 60).padStart(2, '0')}`; };
+    /* ---------- flamme de série ----------
+       La série se calcule à partir de l'historique des missions validées (une date par validation) :
+       jours d'affilée avec au moins une mission validée, en partant d'aujourd'hui (si faite) ou d'hier.
+       Joker : un par semaine (lundi → dimanche), il sauve tout seul UN jour manqué entouré de jours faits.
+       Le jour sauvé garde la série en vie mais ne compte pas. */
+    const midi = (d) => { const x = new Date(d); x.setHours(12, 0, 0, 0); return x; };
+    const cleJour = (d) => { const x = new Date(d); return `${x.getFullYear()}-${String(x.getMonth() + 1).padStart(2, '0')}-${String(x.getDate()).padStart(2, '0')}`; };
+    const decaler = (d, n) => { const x = midi(d); x.setDate(x.getDate() + n); return x; };
+    const lundiDe = (d) => decaler(d, -((new Date(d).getDay() + 6) % 7));
+    function calculerSerie(historique, maintenant = Date.now()) {
+      const faits = new Set((historique || []).map((h) => h && h.date && cleJour(h.date)).filter(Boolean));
+      const auj = midi(maintenant);
+      const faitAujourdhui = faits.has(cleJour(auj));
+      const jokers = [], semaines = new Set();
+      let d = faitAujourdhui ? auj : decaler(auj, -1), serie = 0;
+      for (let i = 0; i < 4000; i++) {
+        if (faits.has(cleJour(d))) { serie++; d = decaler(d, -1); continue; }
+        const avant = decaler(d, -1), sem = cleJour(lundiDe(d));
+        if (!semaines.has(sem) && faits.has(cleJour(avant))) { semaines.add(sem); jokers.push(cleJour(d)); d = avant; continue; }
+        break;
+      }
+      return { serie, faitAujourdhui, faits, jokers, jokerDispo: !semaines.has(cleJour(lundiDe(auj))) };
+    }
+    const JOURS_SEMAINE = ['dimanche', 'lundi', 'mardi', 'mercredi', 'jeudi', 'vendredi', 'samedi'];
+    function nomJour(cle) {
+      const [a, mo, j] = cle.split('-').map(Number), d = new Date(a, mo - 1, j, 12);
+      const ecart = Math.round((midi(Date.now()) - d) / 86400000);
+      return ecart === 1 ? 'hier' : ecart === 2 ? 'avant-hier' : ecart < 7 ? JOURS_SEMAINE[d.getDay()] : `le ${d.toLocaleDateString('fr-FR', { day: 'numeric', month: 'long' })}`;
+    }
+
+    /* ---------- le chat évolue : paliers de série ---------- */
+    const PALIERS = [
+      { jours: 3, emoji: '🎀', nom: 'Nœud de champion', texte: 'Trois jours d’affilée : le chat sort son plus beau nœud.', fond: 'linear-gradient(145deg,#ff8fc0,#e0479a)' },
+      { jours: 7, emoji: '😎', nom: 'Lunettes de star', texte: 'Une semaine entière ! Le chat ne te regarde plus de haut… enfin, un peu moins.', fond: 'linear-gradient(145deg,#6fd3ff,#3a7bf0)' },
+      { jours: 30, emoji: '👑', nom: 'Couronne royale', texte: 'Trente jours. Le chat s’incline : tu règnes sur tes écrans.', fond: 'linear-gradient(145deg,#ffe07a,#f2a516)' },
+      { jours: 100, emoji: '🏆', nom: 'Légende de la discipline', texte: 'Cent jours. Le chat fait encadrer ta photo dans sa chambre.', fond: 'linear-gradient(145deg,#ffd36b,#9747FF)' },
+    ];
+    const palierAtteint = (serie) => PALIERS.filter((p) => serie >= p.jours).pop() || null;
+    const palierSuivant = (serie) => PALIERS.find((p) => serie < p.jours) || null;
+
     /* ---------- notifications du système (Notification API) ---------- */
     const permissionNotifs = () => ('Notification' in window ? Notification.permission : 'indisponible');
     async function demanderPermissionNotifs() {
@@ -558,8 +607,163 @@
       );
     }
 
+    /* ================= FLAMME DE SÉRIE + PALIERS DU CHAT ================= */
+    const CLE_FLAMME = 'disciplineplus.flamme'; // dernière série vue sur cet appareil (pour l'animation de montée)
+    function useSerieQuiMonte(serie) {
+      const [monte, setMonte] = useState(false);
+      useEffect(() => {
+        let vu = null;
+        try { vu = JSON.parse(localStorage.getItem(CLE_FLAMME)); } catch (e) {}
+        try { localStorage.setItem(CLE_FLAMME, JSON.stringify(serie)); } catch (e) {}
+        if (typeof vu === 'number' && serie > vu) {
+          setMonte(true);
+          const id = setTimeout(() => setMonte(false), 1900);
+          return () => clearTimeout(id);
+        }
+      }, [serie]);
+      return monte;
+    }
+
+    // Pastille de l'en-tête : flamme + nombre. Grisée tant que la mission du jour n'est pas faite.
+    function PastilleFlamme({ info, onClick }) {
+      const monte = useSerieQuiMonte(info.serie);
+      const vive = info.faitAujourdhui;
+      return (
+        <button onClick={onClick} aria-label={`Ta série : ${info.serie} jour${info.serie > 1 ? 's' : ''} d’affilée${vive ? '' : ', mission du jour pas encore faite'}`}
+          className={`pression relative ml-auto flex items-center ${monte ? 'halo-monte' : ''}`}
+          style={{ height: u(88), padding: `0 ${u(24)} 0 ${u(16)}`, gap: u(6), borderRadius: u(26),
+            background: vive ? 'linear-gradient(145deg,#fff4e0,#ffe2c2)' : 'rgba(255,255,255,.72)', backdropFilter: 'blur(10px)',
+            border: `1px solid ${vive ? '#ffd2a1' : 'rgba(255,255,255,.9)'}`, boxShadow: `0 ${u(8)} ${u(24)} ${vive ? 'rgba(255,120,30,.28)' : 'rgba(60,30,140,.18)'}` }}>
+          <span aria-hidden="true" className={monte ? 'flamme-monte' : vive ? 'flamme-vive' : ''}
+            style={{ fontSize: u(46), lineHeight: 1, filter: vive ? 'drop-shadow(0 0 6px rgba(255,140,40,.55))' : 'grayscale(.85) opacity(.7)' }}>🔥</span>
+          <span className="tabular-nums" style={{ fontSize: u(40), fontWeight: 900, letterSpacing: '-0.04em', color: vive ? '#e8590c' : '#4b4268' }}>{info.serie}</span>
+          {info.jokers.length > 0 && info.jokers[0] >= cleJour(lundiDe(Date.now())) && (
+            <span aria-hidden="true" title="Joker utilisé cette semaine" className="absolute flex items-center justify-center rounded-full"
+              style={{ right: u(-8), top: u(-8), width: u(34), height: u(34), fontSize: u(19), background: '#fff', boxShadow: `0 ${u(3)} ${u(8)} rgba(60,30,140,.25)` }}>🛡️</span>
+          )}
+        </button>
+      );
+    }
+
+    // Accessoires gagnés autour du chat (emoji superposés), plus la silhouette du prochain palier.
+    function AccessoiresChat({ serie, onClick, style }) {
+      const gagnes = PALIERS.filter((p) => serie >= p.jours);
+      const prochain = palierSuivant(serie);
+      return (
+        <button onClick={onClick} aria-label={`Accessoires du chat : ${gagnes.length ? gagnes.map((p) => p.nom).join(', ') : 'aucun pour l’instant'}`}
+          className="pression absolute flex items-center" style={{ gap: u(10), ...style }}>
+          {gagnes.map((p, i) => (
+            <span key={p.jours} className={`pop flex items-center justify-center rounded-full ${i === gagnes.length - 1 ? 'badge-brille' : ''}`}
+              style={{ width: u(68), height: u(68), fontSize: u(36), background: p.fond, border: `${u(4)} solid #fff`, boxShadow: `0 ${u(6)} ${u(16)} rgba(60,30,140,.3)` }}>{p.emoji}</span>
+          ))}
+          {prochain && (
+            <span className="relative flex items-center justify-center rounded-full" style={{ width: u(60), height: u(60), background: 'rgba(255,255,255,.6)', border: `${u(3)} dashed rgba(113,56,245,.55)` }}>
+              <span style={{ fontSize: u(30), filter: 'grayscale(1)', opacity: .6 }}>{prochain.emoji}</span>
+              <span className="absolute" style={{ bottom: u(-14), left: '50%', transform: 'translateX(-50%)', fontSize: t(15, 9), fontWeight: 800, color: '#fff', background: '#7138F5', borderRadius: u(12), padding: `${u(1)} ${u(9)}`, whiteSpace: 'nowrap' }}>
+                J-{prochain.jours - serie}
+              </span>
+            </span>
+          )}
+        </button>
+      );
+    }
+
+    // Petite carte « Nouveau palier ! »
+    function CartePalier({ palier, onOk, compact = false }) {
+      return (
+        <div className="pop relative overflow-hidden text-left text-white" role="status" aria-live="polite"
+          style={{ borderRadius: u(40), padding: `${u(26)} ${u(30)}`, background: 'linear-gradient(110deg,#3a2a68,#5b2fd6)', boxShadow: `0 0 0 ${u(3)} #ffd36b, 0 ${u(14)} ${u(36)} rgba(60,30,140,.35)` }}>
+          <div className="flex items-center" style={{ gap: u(24) }}>
+            <span className="badge-brille flex flex-none items-center justify-center rounded-full" style={{ width: u(110), height: u(110), fontSize: u(58), background: palier.fond, border: `${u(5)} solid #fff` }}>{palier.emoji}</span>
+            <span className="min-w-0">
+              <span className="block" style={{ fontSize: t(19), fontWeight: 800, color: '#ffd36b', letterSpacing: '.02em', textTransform: 'uppercase' }}>Nouveau palier !</span>
+              <span className="block" style={{ fontSize: u(34), fontWeight: 800, letterSpacing: '-0.03em', lineHeight: 1.1 }}>{palier.nom}</span>
+              <span className="block" style={{ fontSize: t(19), color: 'rgba(255,255,255,.88)', marginTop: u(6), lineHeight: 1.3 }}>{palier.texte}</span>
+            </span>
+          </div>
+          {!compact && (
+            <button onClick={onOk} className="pression btn-violet flex w-full items-center justify-center text-white" style={{ height: u(86), borderRadius: u(43), fontSize: u(27), fontWeight: 700, marginTop: u(24) }}>
+              Trop stylé, merci chef !
+            </button>
+          )}
+        </div>
+      );
+    }
+
+    // Contenu de la feuille « Ta série » : flamme, joker, semaine, paliers.
+    function DetailSerie({ info }) {
+      const lundi = lundiDe(Date.now()), aujCle = cleJour(Date.now());
+      const semaine = Array.from({ length: 7 }, (_, i) => { const d = decaler(lundi, i), c = cleJour(d); return { c, l: 'LMMJVSD'[i], fait: info.faits.has(c), joker: info.jokers.includes(c), futur: c > aujCle, auj: c === aujCle }; });
+      const jokerSemaine = info.jokers.find((c) => c >= cleJour(lundi));
+      const prochain = palierSuivant(info.serie), precedent = palierAtteint(info.serie);
+      const base = precedent ? precedent.jours : 0;
+      return (
+        <div>
+          <div className="flex items-center" style={{ gap: u(24) }}>
+            <span aria-hidden="true" className={info.faitAujourdhui ? 'flamme-vive' : ''} style={{ fontSize: u(110), lineHeight: 1, filter: info.faitAujourdhui ? 'drop-shadow(0 0 12px rgba(255,140,40,.6))' : 'grayscale(.85) opacity(.7)' }}>🔥</span>
+            <div>
+              <div style={{ fontSize: u(64), fontWeight: 900, letterSpacing: '-0.04em', lineHeight: 1, color: '#e8590c' }}>{info.serie} jour{info.serie > 1 ? 's' : ''}</div>
+              <div style={{ fontSize: t(21), color: '#5b4f86', marginTop: u(8) }}>
+                {info.faitAujourdhui ? 'Flamme allumée pour aujourd’hui. Reviens demain ! 🔥' : info.serie > 0 ? 'Valide ta mission du jour pour garder ta flamme.' : 'Valide ta mission du jour pour allumer ta flamme.'}
+              </div>
+            </div>
+          </div>
+
+          <div className="flex justify-between" style={{ marginTop: u(28), padding: `${u(20)} ${u(22)}`, borderRadius: u(34), background: '#f7f4ff' }}>
+            {semaine.map((j) => (
+              <div key={j.c} className="flex flex-col items-center" style={{ gap: u(8) }}>
+                <span className="flex items-center justify-center rounded-full" style={{ width: u(66), height: u(66), fontSize: u(32),
+                  background: j.fait ? 'linear-gradient(145deg,#ffb15c,#ff6a1a)' : j.joker ? 'linear-gradient(145deg,#b9e3ff,#5aa7f0)' : '#fff',
+                  border: j.auj ? `${u(4)} solid #7138F5` : `${u(2)} solid #e6def8`, opacity: j.futur ? .5 : 1 }}>
+                  {j.fait ? '🔥' : j.joker ? '🛡️' : ''}
+                </span>
+                <span style={{ fontSize: t(18), fontWeight: j.auj ? 800 : 600, color: j.auj ? '#7138F5' : '#7a6fa3' }}>{j.l}</span>
+              </div>
+            ))}
+          </div>
+
+          <div className="flex items-start" style={{ marginTop: u(18), gap: u(18), padding: `${u(20)} ${u(24)}`, borderRadius: u(30), background: jokerSemaine ? '#eaf5ff' : '#f1edff' }}>
+            <span style={{ fontSize: u(40), lineHeight: 1 }}>🛡️</span>
+            <span>
+              <span className="block" style={{ fontSize: t(22), fontWeight: 700 }}>{jokerSemaine ? `Joker utilisé ${nomJour(jokerSemaine)}` : 'Joker disponible cette semaine'}</span>
+              <span className="block" style={{ fontSize: t(19), color: '#5b4f86' }}>
+                {jokerSemaine ? 'Il a sauvé ta série. Le prochain revient lundi : ne rate plus de jour d’ici là !' : 'Si tu rates un jour, il sauve ta série tout seul. Un joker par semaine.'}
+              </span>
+              {info.jokers.length > 0 && !jokerSemaine && (
+                <span className="block" style={{ fontSize: t(17), color: '#7a6fa3', marginTop: u(4) }}>Dernier joker utilisé : {nomJour(info.jokers[0])}.</span>
+              )}
+            </span>
+          </div>
+
+          <h4 style={{ fontSize: u(30), fontWeight: 800, letterSpacing: '-0.02em', marginTop: u(30) }}>Le chat évolue</h4>
+          {prochain && (
+            <div style={{ marginTop: u(12) }}>
+              <div className="flex justify-between" style={{ fontSize: t(19), fontWeight: 600, color: '#5b4f86' }}>
+                <span>Prochain : {prochain.emoji} {prochain.nom}</span><span className="tabular-nums">{info.serie} / {prochain.jours} j</span>
+              </div>
+              <div className="overflow-hidden rounded-full" style={{ marginTop: u(10), height: u(16), background: '#ece6fb' }}>
+                <div className="h-full rounded-full transition-all duration-700" style={{ width: `${Math.max(4, ((info.serie - base) / (prochain.jours - base)) * 100)}%`, background: 'linear-gradient(90deg,#ffb15c,#ff6a1a)' }} />
+              </div>
+            </div>
+          )}
+          <div className="grid grid-cols-4" style={{ gap: u(16), marginTop: u(20) }}>
+            {PALIERS.map((p) => {
+              const ok = info.serie >= p.jours;
+              return (
+                <div key={p.jours} className="flex flex-col items-center text-center" style={{ opacity: ok ? 1 : .55 }}>
+                  <span className="flex items-center justify-center rounded-full" style={{ width: u(100), height: u(100), fontSize: u(50), background: ok ? p.fond : '#ece8f5', border: `${u(4)} solid #fff`, boxShadow: ok ? `0 ${u(6)} ${u(16)} rgba(60,30,140,.25)` : 'none', filter: ok ? 'none' : 'grayscale(1)' }}>{p.emoji}</span>
+                  <span style={{ fontSize: t(17), fontWeight: 700, marginTop: u(10), lineHeight: 1.15 }}>{p.nom}</span>
+                  <span style={{ fontSize: t(16), color: '#7a6fa3' }}>{ok ? 'Débloqué ✓' : `${p.jours} jours`}</span>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      );
+    }
+
     /* ================= ACCUEIL ================= */
-    function Accueil({ etat, maj, ouvrir, proposerAlertes }) {
+    function Accueil({ etat, maj, ouvrir, proposerAlertes, infoSerie }) {
       const m = MISSIONS[etat.index % MISSIONS.length];
       const enCours = etat.fin != null && !etat.missionFaite;
       const now = useMaintenant(enCours && etat.pause == null);
@@ -602,6 +806,9 @@
                   imageStyle={{ WebkitMaskImage: 'linear-gradient(90deg,transparent,#000 9%,#000 91%,transparent)', maskImage: 'linear-gradient(90deg,transparent,#000 9%,#000 91%,transparent)' }} />}
           </div>
 
+          {/* accessoires gagnés grâce à la série, posés à côté du chat */}
+          <AccessoiresChat serie={infoSerie.serie} onClick={() => ouvrir('serie')} style={{ right: u(40), top: u(452), zIndex: 2 }} />
+
           {/* barre d'état façon iPhone */}
           <div className="relative flex items-center justify-between" style={{ height: u(88), padding: `0 ${u(62)} 0 ${u(80)}`, fontSize: u(32), fontWeight: 600, color: '#0e0b1a' }}>
             <span style={{ letterSpacing: '-0.01em' }}>9:41</span>
@@ -622,8 +829,9 @@
               <h1 style={{ fontSize: u(35), fontWeight: 800, letterSpacing: '-0.03em', lineHeight: 1.1, color: '#120e26' }}>Discipline+</h1>
               <p style={{ fontSize: t(20), fontWeight: 500, letterSpacing: '-0.02em', marginTop: u(8), color: '#16122a' }}>Un meilleur toi, chaque jour.</p>
             </div>
-            <button onClick={() => ouvrir('notifs')} aria-label="Notifications" className="pression relative ml-auto flex items-center justify-center"
-              style={{ width: u(88), height: u(88), borderRadius: u(26), background: 'rgba(255,255,255,.72)', backdropFilter: 'blur(10px)', border: '1px solid rgba(255,255,255,.9)', boxShadow: `0 ${u(8)} ${u(24)} rgba(60,30,140,.18)` }}>
+            <PastilleFlamme info={infoSerie} onClick={() => ouvrir('serie')} />
+            <button onClick={() => ouvrir('notifs')} aria-label="Notifications" className="pression relative flex items-center justify-center"
+              style={{ marginLeft: u(16), width: u(88), height: u(88), borderRadius: u(26), background: 'rgba(255,255,255,.72)', backdropFilter: 'blur(10px)', border: '1px solid rgba(255,255,255,.9)', boxShadow: `0 ${u(8)} ${u(24)} rgba(60,30,140,.18)` }}>
               <Bell fill="#5d3fd3" color="#5d3fd3" style={{ width: u(40), height: u(40) }} />
               {nonLues > 0 && <span className="absolute rounded-full" style={{ right: u(-2), top: u(-2), width: u(22), height: u(22), background: '#ff3b30', border: `${u(3)} solid #fff`, animation: 'pulse-dot 2s infinite' }} />}
             </button>
@@ -730,9 +938,10 @@
               <GraphiqueSerie />
               <span style={{ marginLeft: u(40) }}>
                 <span className="flex items-center" style={{ fontSize: t(24, 10), fontWeight: 500, color: '#d9ccff', gap: u(8) }}>🔥 Ta série</span>
-                <span className="block" style={{ fontSize: u(45), fontWeight: 800, letterSpacing: '-0.035em', lineHeight: 1.12 }}>{etat.serie} jours</span>
+                <span className="block" style={{ fontSize: u(45), fontWeight: 800, letterSpacing: '-0.035em', lineHeight: 1.12 }}>{infoSerie.serie} jour{infoSerie.serie > 1 ? 's' : ''}</span>
                 <span className="block" style={{ fontSize: t(18), fontWeight: 500, color: 'rgba(255,255,255,.92)', marginTop: u(4) }}>
-                  {etat.serie >= 7 ? 'Tu es sur une belle lancée ! 🔥' : 'Chaque jour compte. Continue ! 💪'}
+                  {infoSerie.jokers.length > 0 && infoSerie.jokers[0] >= cleJour(lundiDe(Date.now())) ? `🛡️ Joker utilisé ${nomJour(infoSerie.jokers[0])}`
+                    : infoSerie.serie >= 7 ? 'Tu es sur une belle lancée ! 🔥' : 'Chaque jour compte. Continue ! 💪'}
                 </span>
               </span>
             </button>
@@ -784,10 +993,11 @@
     }
 
     /* ================= STATS ================= */
-    function Stats({ etat }) {
+    function Stats({ etat, infoSerie }) {
       const jours = ['L', 'M', 'M', 'J', 'V', 'S', 'D'];
       const aujourd = (new Date().getDay() + 6) % 7;
-      const valeurs = jours.map((_, i) => (i < aujourd ? 1 : i === aujourd ? (etat.missionFaite ? 1 : 0) : 0));
+      const lundi = lundiDe(Date.now());
+      const valeurs = jours.map((_, i) => { const c = cleJour(decaler(lundi, i)); return infoSerie.faits.has(c) ? 1 : infoSerie.jokers.includes(c) ? 'joker' : 0; });
       const total = 11 + etat.terminees + (etat.serie > 0 ? 1 : 0);
       return (
         <EcranSimple titre="Stats" sousTitre="Ta discipline, en chiffres.">
@@ -805,7 +1015,7 @@
             <div className="flex items-end justify-between" style={{ height: u(200), marginTop: u(24) }}>
               {valeurs.map((v, i) => (
                 <div key={i} className="flex flex-col items-center" style={{ gap: u(12) }}>
-                  <div className="transition-all duration-700" style={{ width: u(54), height: u(v ? 150 : 26), borderRadius: u(16), background: v ? 'linear-gradient(180deg,#c7a6ff,#7a3cf6)' : 'rgba(255,255,255,.14)', boxShadow: v ? '0 0 14px rgba(151,71,255,.6)' : 'none' }} />
+                  <div className="transition-all duration-700 flex items-start justify-center" title={v === 'joker' ? 'Joker utilisé' : undefined} style={{ width: u(54), height: u(v === 1 ? 150 : v ? 90 : 26), borderRadius: u(16), fontSize: u(28), paddingTop: u(6), background: v === 1 ? 'linear-gradient(180deg,#c7a6ff,#7a3cf6)' : v ? 'linear-gradient(180deg,#b9e3ff,#5aa7f0)' : 'rgba(255,255,255,.14)', boxShadow: v ? '0 0 14px rgba(151,71,255,.6)' : 'none' }}>{v === 'joker' ? '🛡️' : ''}</div>
                   <span style={{ fontSize: t(20), color: i === aujourd ? '#fff' : '#bfb0ee', fontWeight: i === aujourd ? 700 : 500 }}>{jours[i]}</span>
                 </div>
               ))}
@@ -1244,6 +1454,25 @@
       const maj = (p) => setEtat((e) => ({ ...e, ...p }));
       const m = MISSIONS[etat.index % MISSIONS.length];
 
+      /* --- flamme de série (calculée depuis l'historique) et paliers du chat --- */
+      const [jour, setJour] = useState(() => cleJour(Date.now()));
+      useEffect(() => {
+        const verifier = () => setJour(cleJour(Date.now()));
+        const id = setInterval(verifier, 60000);
+        document.addEventListener('visibilitychange', verifier);
+        return () => { clearInterval(id); document.removeEventListener('visibilitychange', verifier); };
+      }, []);
+      const infoSerie = useMemo(() => calculerSerie(etat.historique), [etat.historique, jour]);
+      useEffect(() => {
+        const atteint = palierAtteint(infoSerie.serie), vu = etat.palierVu || 0;
+        const p = {};
+        if (etat.serie !== infoSerie.serie) p.serie = infoSerie.serie;
+        if (vu > (atteint ? atteint.jours : 0)) p.palierVu = atteint ? atteint.jours : 0; // série cassée : les paliers se regagnent
+        if (Object.keys(p).length) maj(p);
+      }, [infoSerie.serie, etat.serie, etat.palierVu]);
+      const nouveauPalier = (() => { const a = palierAtteint(infoSerie.serie); return a && a.jours > (etat.palierVu || 0) ? a : null; })();
+      const palierVu = () => { if (nouveauPalier) maj({ palierVu: nouveauPalier.jours }); };
+
       /* --- notification quand le chronomètre arrive à 0 --- */
       const [perm, setPerm] = useState(permissionNotifs);
       const activerAlertes = async () => {
@@ -1309,9 +1538,9 @@
         if (avertissement) setToast('Validée avec ta checklist (IA indisponible)');
         let xp = etat.xp + XP_PAR_MISSION, niveau = etat.niveau, monte = false;
         while (xp >= XP_NIVEAU) { xp -= XP_NIVEAU; niveau += 1; monte = true; }
-        setEtat((e) => ({ ...e, xp, niveau, serie: e.serie + 1, terminees: e.terminees + 1, missionFaite: true, pause: null,
-          historique: [...e.historique, { titre: m.titre, emoji: m.emoji, jour: m.jour, date: Date.now() }],
-          notifs: [{ id: Date.now(), titre: monte ? `Niveau ${niveau} atteint ! ⭐` : 'Mission validée ✅', texte: `+${XP_PAR_MISSION} XP. Tes applications sont débloquées.`, lu: false }, ...e.notifs] }));
+        setEtat((e) => { const historique = [...e.historique, { titre: m.titre, emoji: m.emoji, jour: m.jour, date: Date.now() }]; return {
+          ...e, xp, niveau, serie: calculerSerie(historique).serie, terminees: e.terminees + 1, missionFaite: true, pause: null, historique,
+          notifs: [{ id: Date.now(), titre: monte ? `Niveau ${niveau} atteint ! ⭐` : 'Mission validée ✅', texte: `+${XP_PAR_MISSION} XP. Tes applications sont débloquées.`, lu: false }, ...e.notifs] }; });
         try { if (etat.sons && navigator.vibrate && navigator.userActivation && navigator.userActivation.hasBeenActive) navigator.vibrate([40, 60, 40]); } catch (e) {}
         setEtape(2); setFete(true); setTimeout(() => setFete(false), 3600);
       };
@@ -1331,14 +1560,14 @@
 
       return (
         <div className="ecran">
-          {onglet === 'accueil' && <Accueil etat={etat} maj={maj} ouvrir={ouvrir} proposerAlertes={proposerAlertes} />}
-          {onglet === 'stats' && <Stats etat={etat} />}
+          {onglet === 'accueil' && <Accueil etat={etat} maj={maj} ouvrir={ouvrir} proposerAlertes={proposerAlertes} infoSerie={infoSerie} />}
+          {onglet === 'stats' && <Stats etat={etat} infoSerie={infoSerie} />}
           {onglet === 'recompenses' && <Recompenses etat={etat} />}
           {onglet === 'parametres' && <Parametres etat={etat} maj={maj} reinitialiser={reinitialiser} perm={perm} activerAlertes={activerAlertes} installable={installable} installer={installer} compte={compte} setToast={setToast} />}
           <BarreNav onglet={onglet} setOnglet={(o) => { setOnglet(o); window.scrollTo({ top: 0 }); }} />
 
           {/* Validation de la mission */}
-          <Feuille ouverte={panneau === 'valider'} onFermer={() => setPanneau(null)}>
+          <Feuille ouverte={panneau === 'valider'} onFermer={() => { if (etape === 2) palierVu(); setPanneau(null); }}>
             {etape === 1 ? (
               <div>
                 <span className="badge-mission inline-flex items-center text-white" style={{ height: u(44), padding: `0 ${u(20)}`, borderRadius: u(22), fontSize: t(20), fontWeight: 700 }}>Validation 🎯</span>
@@ -1406,18 +1635,29 @@
                 <p style={{ fontSize: t(23), color: '#5b4f86', marginTop: u(8) }}>{verif && verif.etat === 'ok' && verif.texte ? verif.texte : "Pas mal… je savais que t'en étais capable. 😎"}</p>
                 {verif && verif.etat === 'secours' && <p role="status" style={{ fontSize: t(18), color: '#8a5a00', background: '#fff7e6', borderRadius: u(24), padding: `${u(12)} ${u(18)}`, marginTop: u(12) }}>⚠️ {verif.texte}</p>}
                 <div className="grid grid-cols-3" style={{ gap: u(16), marginTop: u(28) }}>
-                  {[[`+${XP_PAR_MISSION}`, 'XP gagnés'], [`${etat.serie}`, 'jours de série'], ['5', 'applis débloquées']].map(([v, l]) => (
+                  {[[`+${XP_PAR_MISSION}`, 'XP gagnés'], [`🔥 ${infoSerie.serie}`, 'jours de série'], ['5', 'applis débloquées']].map(([v, l]) => (
                     <div key={l} style={{ background: '#f1edff', borderRadius: u(30), padding: `${u(20)} ${u(8)}` }}>
                       <div style={{ fontSize: u(38), fontWeight: 800, color: '#7138F5' }}>{v}</div>
                       <div style={{ fontSize: t(17), color: '#5b4f86', fontWeight: 500 }}>{l}</div>
                     </div>
                   ))}
                 </div>
-                <button onClick={() => setPanneau(null)} className="pression btn-violet flex w-full items-center justify-center text-white" style={{ height: u(100), borderRadius: u(50), fontSize: u(29), fontWeight: 700, marginTop: u(30) }}>
+                {nouveauPalier && <div style={{ marginTop: u(24) }}><CartePalier palier={nouveauPalier} compact /></div>}
+                <button onClick={() => { palierVu(); setPanneau(null); }} className="pression btn-violet flex w-full items-center justify-center text-white" style={{ height: u(100), borderRadius: u(50), fontSize: u(29), fontWeight: 700, marginTop: u(30) }}>
                   Super, merci chef !
                 </button>
               </div>
             )}
+          </Feuille>
+
+          {/* Ta série : flamme, joker, paliers du chat */}
+          <Feuille ouverte={panneau === 'serie'} onFermer={() => setPanneau(null)}>
+            <DetailSerie info={infoSerie} />
+          </Feuille>
+
+          {/* Nouveau palier atteint (hors écran de validation, qui l'affiche lui-même) */}
+          <Feuille ouverte={!!nouveauPalier && panneau === null} onFermer={palierVu}>
+            {nouveauPalier && <CartePalier palier={nouveauPalier} onOk={palierVu} />}
           </Feuille>
 
           {/* Mission suivante */}
