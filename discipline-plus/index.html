@@ -104,8 +104,12 @@
     .voile { animation: fondu .2s ease; }
     .pop { animation: pop .45s cubic-bezier(.2,.9,.25,1); }
     .flotte { animation: flotte 4s ease-in-out infinite; }
+    @keyframes chat-saut { 0%,55%,100% { transform: translateY(0) scale(1) } 62% { transform: translateY(0) scale(1.03,.97) } 72% { transform: translateY(calc(var(--u)*-34)) scale(.98,1.03) } 84% { transform: translateY(0) scale(1.02,.98) } }
+    @keyframes chat-impatient { 0%,60%,100% { transform: rotate(0) } 66% { transform: rotate(-2.2deg) } 72% { transform: rotate(2.2deg) } 78% { transform: rotate(-1.6deg) } 84% { transform: rotate(1.2deg) } 90% { transform: rotate(0) } }
+    .chat-joie { animation: chat-saut 2.4s ease-in-out infinite; transform-origin: 50% 90%; }
+    .chat-impatient { animation: chat-impatient 2.4s ease-in-out infinite; transform-origin: 50% 90%; }
     .vue { animation: fondu .25s ease; }
-    @media (prefers-reduced-motion: reduce) { .feuille, .voile, .pop, .flotte, .vue { animation: none; } }
+    @media (prefers-reduced-motion: reduce) { .feuille, .voile, .pop, .flotte, .vue, .chat-joie, .chat-impatient { animation: none; } }
   </style>
 </head>
 <body class="font-sans antialiased">
@@ -114,7 +118,7 @@
   <script type="text/babel" data-type="module" data-presets="react">
     import React, { useState, useEffect, useRef, useMemo } from 'react';
     import { createRoot } from 'react-dom/client';
-    import { Check, ChevronRight, ChevronDown, Lock, LockOpen, Clock, X, Camera, Home, Trophy, Settings, Bell, RotateCcw, Pause, Play, Info, Flame, Target, Sparkles, Download, Cloud, CloudOff, LogOut, Mail, KeyRound } from 'lucide-react';
+    import { Check, ChevronRight, ChevronDown, Lock, LockOpen, Clock, X, Camera, Home, Trophy, Settings, Bell, RotateCcw, Pause, Play, Info, Flame, Target, Sparkles, Download, Cloud, CloudOff, LogOut, Mail, KeyRound, Volume2 } from 'lucide-react';
     import { createClient } from '@supabase/supabase-js';
 
     /* ---------- compte en ligne (Supabase) : clé publique, protégée par les règles RLS de la table ---------- */
@@ -384,6 +388,72 @@
       return now;
     }
 
+    /* ================= CHAT ANIMÉ =================
+       Les vidéos sont lues depuis un blob (fetch → cache du service worker) : pas de requêtes « Range »,
+       donc ça marche hors ligne, y compris sur iPhone. Sans vidéo, on garde l'image fixe. */
+    const VIDEO_INTRO = 'img/chat-intro.mp4', VIDEO_BOUCLE = 'img/chat-idle.mp4', POSE_CHAT = 'img/chat-pose.jpg';
+    const blobsChat = {}, blobsPrets = {};
+    function chargerVideo(src) {
+      return blobsChat[src] || (blobsChat[src] = fetch(src)
+        .then((r) => { if (!r.ok) throw new Error('vidéo ' + r.status); return r.blob(); })
+        .then((b) => (blobsPrets[src] = URL.createObjectURL(b)))
+        .catch((e) => { delete blobsChat[src]; throw e; }));
+    }
+    const mouvementReduit = () => { try { return matchMedia('(prefers-reduced-motion: reduce)').matches; } catch (e) { return false; } };
+    let introDejaVue = false; // l'intro « toc toc » passe une fois par ouverture de l'appli
+
+    function ChatAnime({ intro = false, humeur, alt, style, videoStyle, onPhase, boutonSon }) {
+      const ref = useRef(null);
+      const reduit = useMemo(mouvementReduit, []);
+      const [phase, setPhase] = useState(() => (intro && !reduit ? 'intro' : 'boucle'));
+      const [src, setSrc] = useState(null);
+      const son = useRef(false);
+
+      useEffect(() => { if (phase === 'intro') introDejaVue = true; onPhase && onPhase(phase); }, [phase]);
+      useEffect(() => {
+        if (reduit) return;
+        let actif = true;
+        const f = phase === 'intro' ? VIDEO_INTRO : VIDEO_BOUCLE;
+        chargerVideo(f).then((url) => { if (actif) setSrc(url); }).catch(() => { if (actif && phase === 'intro') setPhase('boucle'); });
+        if (phase === 'boucle' && boutonSon) chargerVideo(VIDEO_INTRO).catch(() => {}); // prête pour le bouton « son »
+        return () => { actif = false; };
+      }, [phase]);
+      useEffect(() => {
+        const v = ref.current; if (!v || !src) return;
+        v.muted = !son.current;
+        const p = v.play();
+        // Son refusé par le navigateur (pas de geste de l'utilisateur) : on relance sans le son.
+        if (p) p.catch((e) => { if (e && e.name === 'AbortError') return; if (!v.muted) { v.muted = true; son.current = false; v.play().catch(() => {}); } });
+      }, [src]);
+
+      const fini = () => { if (phase === 'intro') { son.current = false; setPhase('boucle'); } };
+      const rejouerAvecSon = () => {
+        const v = ref.current, url = blobsPrets[VIDEO_INTRO];
+        if (!v || !url) return;
+        son.current = true;
+        v.src = url; v.loop = false; v.muted = false; v.currentTime = 0;
+        v.play().catch((e) => { if (e && e.name === 'AbortError') return; v.muted = true; son.current = false; v.play().catch(() => {}); });
+        setPhase('intro'); setSrc(url);
+      };
+
+      return (
+        <>
+          <div className={humeur === 'joie' ? 'chat-joie' : humeur === 'impatient' ? 'chat-impatient' : ''} style={style}>
+            {src && !reduit
+              ? <video ref={ref} src={src} poster={POSE_CHAT} muted playsInline autoPlay loop={phase === 'boucle'} onEnded={fini}
+                  aria-label={alt} className="block h-full w-full object-cover" style={videoStyle} />
+              : <img src={POSE_CHAT} alt={alt} className="block h-full w-full object-cover" style={videoStyle} />}
+          </div>
+          {boutonSon && !reduit && (
+            <button onClick={rejouerAvecSon} aria-label="Écouter le chat" className="pression absolute flex items-center justify-center rounded-full"
+              style={{ ...boutonSon, width: u(76), height: u(76), background: 'rgba(255,255,255,.8)', backdropFilter: 'blur(10px)', border: '1px solid rgba(255,255,255,.95)', boxShadow: `0 ${u(8)} ${u(22)} rgba(60,30,140,.22)` }}>
+              <Volume2 color="#5d3fd3" style={{ width: '48%', height: '48%' }} />
+            </button>
+          )}
+        </>
+      );
+    }
+
     function Feuille({ ouverte, onFermer, children, sombre = false }) {
       if (!ouverte) return null;
       return (
@@ -428,8 +498,10 @@
       const nonLues = etat.notifs.filter((n) => !n.lu).length;
       const appsDebloquees = etat.missionFaite;
 
+      const [phaseChat, setPhaseChat] = useState(null);
       const bulle = etat.missionFaite ? <>Bien joué ! 😎<br />Tes applis sont<br />débloquées.</>
         : expire ? <>Temps écoulé ! ⏰<br />Termine quand<br />même ta mission.</>
+        : phaseChat === 'intro' ? <>Toc toc ! ✊<br />Viens faire ta<br />mission du jour !</>
         : <>Salam ! 👋<br />Prêt pour ta<br />mission du jour ?</>;
 
       const basculerChrono = () => {
@@ -445,8 +517,11 @@
       return (
         <div className="vue relative" style={{ paddingBottom: u(150) }}>
           {/* décor + personnage */}
-          <div className="absolute left-0 top-0 w-full" style={{ height: u(1000), WebkitMaskImage: 'linear-gradient(180deg,#000 90%,transparent)', maskImage: 'linear-gradient(180deg,#000 90%,transparent)' }}>
-            <img src="img/hero.jpg" alt="Le chat Discipline+ sur un terrain de basket ensoleillé" className="h-full w-full object-cover" />
+          <div className="absolute left-0 top-0 w-full overflow-hidden" style={{ height: u(1000), background: '#cfc8e4', WebkitMaskImage: 'linear-gradient(180deg,#000 90%,transparent)', maskImage: 'linear-gradient(180deg,#000 90%,transparent)' }}>
+            <ChatAnime intro={!etat.missionFaite && !expire && !introDejaVue} humeur={etat.missionFaite ? 'joie' : expire ? 'impatient' : null}
+              alt="Le chat Discipline+ te regarde, les bras croisés" onPhase={setPhaseChat} boutonSon={{ left: u(44), top: u(470) }}
+              style={{ position: 'absolute', left: u(40), top: u(28), width: u(495), height: u(880) }}
+              videoStyle={{ WebkitMaskImage: 'linear-gradient(90deg,transparent,#000 9%,#000 91%,transparent)', maskImage: 'linear-gradient(90deg,transparent,#000 9%,#000 91%,transparent)' }} />
           </div>
 
           {/* barre d'état façon iPhone */}
@@ -1247,7 +1322,7 @@
             ) : (
               <div className="pop text-center">
                 <div className="relative mx-auto overflow-hidden" style={{ width: u(420), height: u(460), borderRadius: u(50), background: 'linear-gradient(180deg,#3a2a68,#1d1438)' }}>
-                  <img src="img/chat.jpg" alt="Le chat Discipline+ satisfait" className="h-full w-full object-cover" style={{ objectPosition: '50% 8%' }} />
+                  <ChatAnime humeur="joie" alt="Le chat Discipline+ satisfait" style={{ width: '100%', height: '108%' }} videoStyle={{ objectPosition: '50% 12%' }} />
                 </div>
                 <h3 style={{ fontSize: u(46), fontWeight: 800, letterSpacing: '-0.03em', marginTop: u(26) }}>Mission accomplie ! 🎉</h3>
                 <p style={{ fontSize: t(23), color: '#5b4f86', marginTop: u(8) }}>{verif && verif.etat === 'ok' && verif.texte ? verif.texte : "Pas mal… je savais que t'en étais capable. 😎"}</p>
